@@ -27,6 +27,7 @@ Filer: `index.html` (själva sidan), `manifest.webmanifest` och ikonerna (för "
    - **visa enheter** och **styra enheter**
    - **visa zoner**
    - **visa Flows** och **starta Flows**
+   - **visa energi** (valfritt, behövs bara för Diagnostik-knappen)
 3. Kopiera nyckeln direkt (den visas bara en gång).
 
 Ta inte med fler behörigheter än så. När låset kopplas in senare kan sidan bara **låsa**, aldrig låsa upp.
@@ -38,7 +39,9 @@ Ta också reda på Homeys IP-adress (finns i Homey-appen under Inställningar, e
 1. Logga in på developer.tibber.com med ditt Tibber-konto.
 2. Öppna **Access token** och kopiera din token.
 
-Förbrukningen ("Förbrukat idag") kräver att Tibber får mätvärden, t.ex. via Tibber Pulse. Annars står det "Ingen data än".
+Förbrukningen kräver att Tibber får mätvärden, t.ex. via Tibber Pulse. Annars står det "Ingen förbrukningsdata än".
+
+**Tibber Pulse:** har du en Pulse visas "Just nu 2,4 kW" med en kurva över den senaste halvtimmen. Tappar Pulsen kontakten står det "Pulse har ingen kontakt · senast 14:32" och sidan använder Tibbers timdata i stället (som ofta kommer med några timmars fördröjning). Sidan försöker koppla upp sig igen av sig själv.
 
 ## 4. Skapa Flows för stämningarna
 
@@ -70,6 +73,13 @@ Knappar utan ett matchande Flow är gråa, och sidan talar om vilka som saknas. 
 | Stämningar | Namnen på dina Flows, upp till fyra. |
 | Favoriter | Enhetsnamn som ska ligga som snabbknappar. Tomt = fasaden och Sonos väljs automatiskt. |
 | Rumsordning | T.ex. `Hall, Kök, Vardagsrum`. Rum som inte nämns hamnar sist i bokstavsordning. |
+
+## Energi
+
+- **Elkortet** visar elpriset, effekten just nu (med Pulse) och förbrukningen idag jämfört med samma tid igår.
+- **Tryck på raden "Idag …"** längst ner på elkortet för att öppna energivyn: förbrukning per timme idag färgad efter om timmen var billig eller dyr, de senaste sju dagarna, och vilka enheter som drar mest just nu enligt Homey.
+- **Rumsrutorna** visar watt när rummet har enheter som mäter sin förbrukning (t.ex. smarta uttag och golvvärmetermostater).
+- **Diagnostik** (under kugghjulet) visar vad Homeys energifunktioner svarar. Klistra in texten i chatten med Claude för att bygga vidare på energidelen. Den innehåller inga nycklar.
 
 ## Felsökning
 

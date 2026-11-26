@@ -51,7 +51,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .tabs{display:flex;gap:4px;background:var(--inset);border-radius:12px;padding:4px;align-self:flex-start}
 .tabs button{height:36px;padding:0 16px;border-radius:9px;font-size:14px}
 .tabs button[aria-pressed="true"]{background:var(--edge)}
-.bars{display:flex;align-items:flex-end;gap:2px;height:140px}
+.bars{display:flex;align-items:flex-end;gap:2px;height:120px}
 .bars i{flex:1;border-radius:3px;min-height:6px;display:block}
 .bars i.now{box-shadow:0 0 0 2px var(--text)}
 .axis{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px}
@@ -59,7 +59,34 @@ main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .duo>div{background:var(--inset);border-radius:14px;padding:12px 14px}
 .duo .k{font-size:13px;color:var(--muted)}
 .duo .v{font-size:17px;font-weight:500;margin-top:4px}
-.foot{border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;gap:8px;font-size:15px;margin-top:auto}
+.foot{border-top:1px solid var(--line);padding:12px 0 0;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:15px;margin-top:auto;width:100%;text-align:left;min-height:44px}
+.foot .chev{color:var(--muted);font-size:18px}
+.live{display:flex;align-items:center;gap:14px;background:var(--inset);border-radius:14px;padding:12px 14px;min-height:64px}
+.live .kw{font-size:24px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.live .spark{flex:1;min-width:0;height:36px}
+.live .spark svg{width:100%;height:36px;display:block}
+.big-d{width:min(1100px,calc(100vw - 24px))}
+.ewrap{padding:22px;display:flex;flex-direction:column;gap:22px}
+.ehead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ehead h3{margin:0;font-size:22px}
+.egrid{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+@media (min-width:900px){.egrid{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}}
+.esec{background:var(--inset);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.esec h4{margin:0;font-size:15px;font-weight:500;color:var(--muted)}
+.hbars{display:flex;align-items:flex-end;gap:3px;height:150px}
+.hbars i{flex:1;border-radius:3px;display:block;min-height:2px}
+.hbars i.none{background:var(--line);height:2px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;background:var(--c);vertical-align:-1px}
+.drow{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:10px;font-size:14px}
+.drow .track{height:12px;background:var(--line);border-radius:6px;overflow:hidden}
+.drow .track i{display:block;height:100%;background:var(--mid);border-radius:6px}
+.drow.today .track i{background:var(--amber)}
+.drow .n{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.prow{display:flex;justify-content:space-between;gap:10px;font-size:15px;padding:6px 0;border-bottom:1px solid var(--line)}
+.prow:last-child{border-bottom:0}
+.prow small{color:var(--muted);font-size:12px;display:block}
+pre.diag{background:var(--inset);border:1px solid var(--edge);border-radius:10px;padding:10px;font-size:12px;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin:0}
 /* styrning */
 .moods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .moods button{height:48px;border-radius:14px;border:1px solid var(--edge);background:var(--card);font-size:14px;font-weight:500;padding:0 6px}
@@ -183,13 +210,16 @@ input:focus{outline:2px solid var(--amber);outline-offset:1px}
     <label>Rumsordning (valfritt, kommaseparerade)
       <input name="roomOrder" placeholder="Hall, Kök, Vardagsrum, …">
     </label>
+    <div id="diagout" hidden></div>
     <div class="actions">
+      <button type="button" class="tbtn" data-act="diag">Diagnostik</button>
       <button type="button" class="tbtn" data-act="clearcfg">Rensa allt</button>
       <button type="button" class="tbtn" data-act="closecfg">Avbryt</button>
       <button type="submit" class="tbtn primary">Spara</button>
     </div>
   </form>
 </dialog>
+<dialog id="energy" class="big-d"><div class="ewrap" id="ebody"></div></dialog>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -245,6 +275,8 @@ const S = {
   weather: null,
   err: { homey: null, tibber: null, weather: null },
   updated: { homey: null, tibber: null, weather: null },
+  hourly: [], daily: [], homeId: null, wsUrl: null,
+  live: { state: 'off', power: null, at: null, acc: null, accCost: null, hist: [] },
   day: 'today', room: null, lastMood: null, moodNote: ''
 };
 
@@ -266,6 +298,7 @@ function demoHomey() {
     lights.forEach(([n, on, dim], li) => {
       const id = zid + 'd' + li, caps = { onoff: { value: on, setable: true } };
       if (dim !== null) caps.dim = { value: dim, setable: true };
+      caps.measure_power = { value: on ? 5 + li * 4 : 0 };
       devices[id] = { id, name: n, zone: zid, class: 'light', capabilitiesObj: caps, available: true };
     });
   });
@@ -281,7 +314,19 @@ function demoPrices() {
   const mk = (arr, off) => arr.map((v, h) => { const d = new Date(); d.setDate(d.getDate() + off); d.setHours(h, 0, 0, 0); return { total: v / 100, startsAt: d.toISOString() }; });
   const today = mk(t, 0);
   S.prices = { today, tomorrow: mk(m, 1), current: today[new Date().getHours()] };
-  S.consumption = { kwh: 34.2, cost: 21 };
+  const mid = new Date(); mid.setHours(0, 0, 0, 0);
+  const prof = [0.6,0.5,0.5,0.5,0.6,0.8,1.6,2.4,1.9,1.2,1.0,1.1,1.3,1.0,0.9,1.1,1.9,2.8,2.6,2.1,1.7,1.4,1.0,0.8];
+  const priceAt = (h, off) => (off === 0 ? t : m)[h] / 100;
+  S.hourly = [];
+  for (let off = -1; off <= 0; off++) for (let h = 0; h < 24; h++) {
+    const from = new Date(mid); from.setDate(from.getDate() + off); from.setHours(h);
+    if (off === 0 && h >= new Date().getHours()) break;
+    const kwh = prof[h] * (off ? 1.08 : 1);
+    S.hourly.push({ from, kwh, cost: kwh * priceAt(h, off) });
+  }
+  S.daily = [41.2, 38.7, 44.9, 36.1, 39.4, 42.8, 37.5].map((kwh, i) => { const from = new Date(mid); from.setDate(from.getDate() - 7 + i); return { from, kwh, cost: kwh * 0.58 }; });
+  S.live = { state: 'ok', power: 1850, at: new Date(), acc: null, accCost: null, hist: [] };
+  for (let i = 60; i > 0; i--) S.live.hist.push({ t: Date.now() - i * 20000, p: 1500 + Math.round(Math.sin(i / 7) * 500 + Math.random() * 250) });
 }
 
 // ---------- Homey ----------
@@ -355,7 +400,7 @@ function stamp(key, everyMin, label) {
 // ---------- Tibber ----------
 async function loadTibber() {
   if (!useTibber()) return;
-  const q = '{ viewer { homes { currentSubscription { priceInfo { current { total startsAt } today { total startsAt } tomorrow { total startsAt } } } consumption(resolution: HOURLY, last: 30) { nodes { from consumption cost } } } } }';
+  const q = '{ viewer { websocketSubscriptionUrl homes { id features { realTimeConsumptionEnabled } currentSubscription { priceInfo { current { total startsAt } today { total startsAt } tomorrow { total startsAt } } } hourly: consumption(resolution: HOURLY, last: 48) { nodes { from consumption cost } } daily: consumption(resolution: DAILY, last: 7) { nodes { from consumption cost } } } } }';
   try {
     const r = await fetch('https://api.tibber.com/v1-beta/gql', { method: 'POST', headers: { Authorization: 'Bearer ' + cfg.tibber, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
     if (r.status === 401 || r.status === 403) throw new Error('auth');
@@ -365,12 +410,81 @@ async function loadTibber() {
     if (!home) throw new Error('nohome');
     const pi = home.currentSubscription.priceInfo;
     S.prices = { today: pi.today || [], tomorrow: pi.tomorrow || [], current: pi.current };
-    const mid = new Date(); mid.setHours(0, 0, 0, 0);
-    const nodes = ((home.consumption && home.consumption.nodes) || []).filter((n) => new Date(n.from) >= mid && n.consumption != null);
-    S.consumption = nodes.length ? { kwh: nodes.reduce((a, n) => a + n.consumption, 0), cost: nodes.reduce((a, n) => a + (n.cost || 0), 0) } : null;
+    const clean = (c) => ((c && c.nodes) || []).filter((n) => n.consumption != null).map((n) => ({ from: new Date(n.from), kwh: n.consumption, cost: n.cost || 0 }));
+    S.hourly = clean(home.hourly); S.daily = clean(home.daily);
     S.err.tibber = null; S.updated.tibber = new Date();
+    if (!S.homeId && home.features && home.features.realTimeConsumptionEnabled && j.data.viewer.websocketSubscriptionUrl) {
+      S.homeId = home.id; S.wsUrl = j.data.viewer.websocketSubscriptionUrl; startLive();
+    }
   } catch (e) { S.err.tibber = e.message === 'auth' ? 'auth' : e.message === 'nohome' ? 'nohome' : 'net'; }
   renderPower();
+}
+
+// Tibber Pulse i realtid. Pulsen tappar ofta kontakten, så allt här ska tåla att data saknas.
+function startLive() {
+  if (!/^[0-9a-f-]{20,}$/i.test(S.homeId || '')) return;
+  let ws = null, backoff = 20000;
+  S.live.state = 'waiting';
+  const retry = () => { S.live.state = S.live.power != null ? S.live.state : 'waiting'; setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 5 * 60000); };
+  const connect = () => {
+    try { ws = new WebSocket(S.wsUrl, 'graphql-transport-ws'); } catch (e) { retry(); return; }
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'connection_init', payload: { token: cfg.tibber } }));
+    ws.onmessage = (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.type === 'connection_ack') {
+        ws.send(JSON.stringify({ id: '1', type: 'subscribe', payload: { query: `subscription { liveMeasurement(homeId: "${S.homeId}") { timestamp power accumulatedConsumption accumulatedCost } }` } }));
+      } else if (m.type === 'next' && m.payload && m.payload.data && m.payload.data.liveMeasurement) {
+        const lm = m.payload.data.liveMeasurement; backoff = 20000;
+        const L = S.live; L.state = 'ok'; L.power = lm.power; L.at = new Date(); L.acc = lm.accumulatedConsumption; L.accCost = lm.accumulatedCost;
+        const last = L.hist[L.hist.length - 1];
+        if (!last || Date.now() - last.t > 15000) { L.hist.push({ t: Date.now(), p: lm.power }); L.hist = L.hist.filter((x) => Date.now() - x.t < 30 * 60000); }
+        renderLive();
+      } else if (m.type === 'ping') { ws.send(JSON.stringify({ type: 'pong' })); }
+      else if (m.type === 'error' || m.type === 'complete') { try { ws.close(); } catch (e) {} }
+    };
+    ws.onclose = retry;
+  };
+  connect();
+}
+const liveFresh = () => S.live.at && Date.now() - S.live.at.getTime() < 2 * 60000;
+function todayUsage() {
+  const mid = new Date(); mid.setHours(0, 0, 0, 0);
+  const hrs = S.hourly.filter((n) => n.from >= mid);
+  const fromHours = hrs.length ? { kwh: hrs.reduce((a, n) => a + n.kwh, 0), cost: hrs.reduce((a, n) => a + n.cost, 0), hours: hrs.length } : null;
+  // Pulsens dagssumma är mest aktuell, men bara om den är färsk och från idag
+  if (S.live.acc != null && S.live.at && S.live.at >= mid) return { kwh: S.live.acc, cost: S.live.accCost || 0, hours: new Date().getHours() + new Date().getMinutes() / 60, live: true };
+  return fromHours;
+}
+function vsYesterday(u) {
+  if (!u || u.hours < 3) return null;
+  const mid = new Date(); mid.setHours(0, 0, 0, 0);
+  const y0 = new Date(mid); y0.setDate(y0.getDate() - 1);
+  const yEnd = new Date(y0.getTime() + u.hours * 3600000);
+  const ys = S.hourly.filter((n) => n.from >= y0 && n.from < yEnd);
+  if (ys.length < Math.floor(u.hours) - 1) return null;
+  const yk = ys.reduce((a, n) => a + n.kwh, 0); if (yk <= 0) return null;
+  return Math.round((u.kwh - yk) / yk * 100);
+}
+function sparkline(hist) {
+  if (hist.length < 2) return '';
+  const ps = hist.map((x) => x.p), max = Math.max(...ps, 1), min = Math.min(...ps, 0);
+  const t0 = hist[0].t, span = Math.max(hist[hist.length - 1].t - t0, 1);
+  const pts = hist.map((x) => ((x.t - t0) / span * 300).toFixed(1) + ',' + (38 - (x.p - min) / (max - min || 1) * 34).toFixed(1)).join(' ');
+  return `<svg viewBox="0 0 300 40" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="#F5B544" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+}
+function liveHtml() {
+  const L = S.live;
+  if (L.state === 'off') return '';
+  const kw = (w) => num(w / 1000, w >= 10000 ? 0 : 1) + ' kW';
+  if (L.power != null && liveFresh()) return `<div><div class="sub">Just nu</div><div class="kw">${kw(L.power)}</div></div><div class="spark">${sparkline(L.hist)}</div>`;
+  const msg = L.at ? 'Pulse har ingen kontakt · senast ' + hhmm(L.at) + ' (' + kw(L.power) + ')' : 'Väntar på data från Pulse…';
+  return `<div class="sub" style="flex:1">${msg}</div>`;
+}
+function renderLive() {
+  const el = document.getElementById('live');
+  if (el) el.innerHTML = liveHtml();
+  else renderPower();
+  if ($('#energy').open) renderEnergy();
 }
 
 // ---------- SMHI ----------
@@ -463,7 +577,8 @@ function renderPower() {
       <div class="duo"><div><div class="k">Billigast ${lbl}</div><div class="v" style="color:var(--cheap)">${minV} öre · ${at(minV)}</div></div>
       <div><div class="k">Dyrast ${lbl}</div><div class="v" style="color:var(--dear)">${maxV} öre · ${at(maxV)}</div></div></div>`;
   }
-  const c = S.consumption;
+  const u = todayUsage(), pct = vsYesterday(u);
+  const cmpY = pct == null ? '' : ` · <span style="color:${pct <= 0 ? 'var(--cheap)' : 'var(--dear)'}">${pct <= 0 ? num(-pct, 0) + ' % mindre' : num(pct, 0) + ' % mer'} än igår</span>`;
   el.innerHTML = head + `
     <div><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span class="big">${nowOre != null ? nowOre : '–'}</span><span class="sub" style="font-size:16px">öre/kWh just nu</span></div>${cmp}</div>
     <div class="tabs" role="group" aria-label="Välj dag">
@@ -472,7 +587,65 @@ function renderPower() {
     </div>
     ${chart}
     ${S.err.tibber ? '<p class="err">Visar senast hämtade priser – Tibber svarar inte just nu.</p>' : ''}
-    <div class="foot"><span style="color:var(--muted)">Förbrukat idag</span><span>${c ? num(c.kwh) + ' kWh · ca ' + num(Math.round(c.cost), 0) + ' kr' : 'Ingen data än'}</span></div>`;
+    ${S.live.state !== 'off' ? `<div class="live" id="live">${liveHtml()}</div>` : ''}
+    <button type="button" class="foot" data-act="energy"><span><span style="color:var(--muted)">Idag </span>${u ? num(u.kwh) + ' kWh · ca ' + num(Math.round(u.cost), 0) + ' kr' + cmpY : 'Ingen förbrukningsdata än'}</span><span class="chev" aria-hidden="true">›</span></button>`;
+}
+
+// ---------- energivy ----------
+function priceClassFor(date, prices, avg) {
+  const p = prices.find((x) => { const s = new Date(x.startsAt).getTime(); return s <= date.getTime() && date.getTime() < s + 3600000; });
+  if (!p) return 'var(--mid)';
+  const v = p.total * 100;
+  return v < avg * 0.85 ? 'var(--cheap)' : v > avg * 1.2 ? 'var(--dear)' : 'var(--mid)';
+}
+function renderEnergy() {
+  const mid = new Date(); mid.setHours(0, 0, 0, 0);
+  const today = (S.prices && S.prices.today) || [];
+  const avg = today.length ? today.reduce((a, x) => a + x.total * 100, 0) / today.length : 0;
+  // per timme idag
+  const slots = Array.from({ length: 24 }, (_, h) => { const from = new Date(mid); from.setHours(h); return { from, n: S.hourly.find((x) => x.from.getTime() === from.getTime()) }; });
+  const maxK = Math.max(...slots.map((s) => s.n ? s.n.kwh : 0), 0.1);
+  let dearK = 0, totK = 0;
+  const hb = slots.map((s) => {
+    if (!s.n) return '<i class="none"></i>';
+    const col = priceClassFor(s.from, today, avg); totK += s.n.kwh; if (col === 'var(--dear)') dearK += s.n.kwh;
+    return `<i style="height:${Math.max(2, Math.round(s.n.kwh / maxK * 100))}%;background:${col}" title="${hhmm(s.from)}: ${num(s.n.kwh)} kWh"></i>`;
+  }).join('');
+  const hasHours = slots.some((s) => s.n);
+  const dearShare = totK > 0 ? Math.round(dearK / totK * 100) : null;
+  // senaste 7 dagarna + idag
+  const days = S.daily.slice(-7).map((d) => ({ label: d.from.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', ''), kwh: d.kwh, cost: d.cost }));
+  const u = todayUsage(); if (u) days.push({ label: 'idag', kwh: u.kwh, cost: u.cost, today: true });
+  const maxD = Math.max(...days.map((d) => d.kwh), 0.1);
+  const weekAvg = S.daily.length ? S.daily.reduce((a, d) => a + d.kwh, 0) / S.daily.length : null;
+  // största förbrukare enligt Homey
+  const users = Object.values(S.devices).filter((d) => typeof val(d, 'measure_power') === 'number' && val(d, 'measure_power') > 0.5)
+    .sort((a, b) => val(b, 'measure_power') - val(a, 'measure_power')).slice(0, 8);
+  const L = S.live;
+  $('#ebody').innerHTML = `
+    <div class="ehead"><h3>Energi</h3><button type="button" class="obtn" data-act="energyclose" aria-label="Stäng">✕</button></div>
+    ${L.state !== 'off' ? `<div class="live">${liveHtml()}</div>` : ''}
+    <div class="egrid">
+      <div class="esec">
+        <h4>Förbrukning per timme idag</h4>
+        ${hasHours ? `<div class="hbars" role="img" aria-label="Förbrukning per timme idag">${hb}</div>
+        <div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+        <div class="legend"><span style="--c:var(--cheap)">Billig timme</span><span style="--c:var(--mid)">Normal</span><span style="--c:var(--dear)">Dyr timme</span></div>
+        ${dearShare != null ? `<div class="sub">${num(dearShare, 0)} % av dagens el har använts under dyra timmar.</div>` : ''}`
+        : '<p class="empty">Tibber har ingen timdata för idag än. Den kommer ofta med några timmars fördröjning när Pulse saknar kontakt.</p>'}
+      </div>
+      <div class="esec">
+        <h4>Senaste veckan</h4>
+        ${days.length ? days.map((d) => `<div class="drow${d.today ? ' today' : ''}"><span>${esc(d.label)}</span><div class="track"><i style="width:${Math.round(d.kwh / maxD * 100)}%"></i></div><span class="n">${num(d.kwh, 0)} kWh · ${num(Math.round(d.cost), 0)} kr</span></div>`).join('')
+          + (weekAvg != null ? `<div class="sub">Snitt ${num(weekAvg, 0)} kWh per dag. "Idag" är hittills.</div>` : '')
+          : '<p class="empty">Ingen dagsdata från Tibber än.</p>'}
+      </div>
+    </div>
+    <div class="esec">
+      <h4>Drar mest just nu (enligt Homey)</h4>
+      ${users.length ? users.map((d) => `<div class="prow"><span>${esc(d.name)}<small>${esc((S.zones[d.zone] || {}).name || '')}</small></span><span>${num(Math.round(val(d, 'measure_power')), 0)} W</span></div>`).join('')
+        : '<p class="empty">Ingen av dina enheter rapporterar förbrukning än. Golvvärmetermostater och smarta uttag brukar göra det, och dyker då upp här automatiskt.</p>'}
+    </div>`;
 }
 
 // ---------- rendering: styrning ----------
@@ -492,6 +665,10 @@ function favDevices() {
   return auto.length ? auto : all.filter(isLight).slice(0, 2);
 }
 function devState(d) {
+  const s = devState0(d), w = val(d, 'measure_power');
+  return typeof w === 'number' && w >= 1 && d.available !== false ? (s ? s + ' · ' : '') + num(Math.round(w), 0) + ' W' : s;
+}
+function devState0(d) {
   if (d.available === false) return 'Inte tillgänglig';
   if (isSpeaker(d)) {
     const v = val(d, 'volume_set');
@@ -542,8 +719,10 @@ function renderControl() {
     el.innerHTML = `<div class="rooms grow">${rooms.map((r) => {
       const lights = r.devs.filter(isLight), n = lights.filter(isOn).length;
       const status = lights.length ? (n === 0 ? 'Släckt' : n === lights.length ? (lights.length === 1 ? 'Tänd' : 'Allt på') : n + ' av ' + lights.length + ' på') : r.devs.length + (r.devs.length === 1 ? ' enhet' : ' enheter');
+      const w = r.devs.reduce((a, d) => a + (typeof val(d, 'measure_power') === 'number' ? val(d, 'measure_power') : 0), 0);
+      const st = status + (w >= 1 ? ' · ' + num(Math.round(w), 0) + ' W' : '');
       return `<div class="room ${n ? 'on' : ''}">
-        <button type="button" class="open" data-act="room" data-zone="${esc(r.zone.id)}"><b>${esc(r.zone.name)}</b><small>${status}</small></button>
+        <button type="button" class="open" data-act="room" data-zone="${esc(r.zone.id)}"><b>${esc(r.zone.name)}</b><small>${st}</small></button>
         ${lights.length ? `<button type="button" class="ibtn ${n ? 'lit' : ''}" data-act="roomtoggle" data-zone="${esc(r.zone.id)}" aria-label="${n ? 'Släck' : 'Tänd'} ${esc(r.zone.name)}">${ICON.bulb('#9AA3AE')}</button>` : ''}
       </div>`;
     }).join('')}</div>`;
@@ -606,6 +785,10 @@ document.addEventListener('click', (ev) => {
       Object.values(S.devices).forEach((x) => { if (isLight(x) && isOn(x)) setCap(x.id, 'onoff', false); if (isSpeaker(x) && val(x, 'speaker_playing')) setCap(x.id, 'speaker_playing', false); });
       S.lastMood = null; S.moodNote = ''; toast('Allt släckt'); break;
     case 'settings': openSettings(); break;
+    case 'energy': renderEnergy(); $('#energy').showModal(); break;
+    case 'energyclose': $('#energy').close(); break;
+    case 'diag': runDiag(); break;
+    case 'copydiag': { const t = $('#diagtext'); if (t) { t.select(); try { navigator.clipboard.writeText(t.value).then(() => toast('Kopierat')); } catch (e) { document.execCommand('copy'); toast('Kopierat'); } } break; }
     case 'closecfg': $('#settings').close(); break;
     case 'clearcfg': if (confirm('Rensa alla inställningar på den här enheten?')) { store.del('cfg'); location.reload(); } break;
   }
@@ -626,6 +809,24 @@ $('#sform').addEventListener('submit', () => {
   location.reload();
 });
 
+// ---------- diagnostik: visar vad Homeys energi-API svarar, för att kunna bygga vidare ----------
+async function runDiag() {
+  const out = $('#diagout'); out.hidden = false;
+  if (!useHomey()) { out.innerHTML = '<p class="hint">Fyll i Homeys IP-adress och API-nyckel och spara först.</p>'; return; }
+  out.innerHTML = '<p class="hint">Hämtar från Homey…</p>';
+  const res = {};
+  for (const [k, path] of [['live', '/api/manager/energy/live'], ['state', '/api/manager/energy/state']]) {
+    try { res[k] = await homey(path); } catch (e) { res[k] = 'FEL: ' + (e.message === 'auth' ? 'saknar behörighet (lägg till "visa energi" på API-nyckeln)' : e.message); }
+  }
+  const measuring = Object.values(S.devices).filter((d) => cap(d, 'measure_power') || cap(d, 'meter_power'))
+    .map((d) => ({ name: d.name, class: d.class, measure_power: val(d, 'measure_power'), meter_power: val(d, 'meter_power') }));
+  res.devicesWithEnergy = measuring;
+  let txt = JSON.stringify(res, null, 2);
+  if (txt.length > 15000) txt = txt.slice(0, 15000) + '\n… (avkortat)';
+  out.innerHTML = `<p class="hint">Kopiera texten och klistra in den i chatten. Den innehåller inga nycklar.</p><textarea id="diagtext" readonly rows="8" style="width:100%;font:12px ui-monospace,monospace;background:var(--inset);color:var(--text);border:1px solid var(--edge);border-radius:10px;padding:10px"></textarea><div class="actions"><button type="button" class="tbtn" data-act="copydiag">Kopiera</button></div>`;
+  $('#diagtext').value = txt;
+}
+
 // ---------- start ----------
 function updateMode() {
   const demoParts = [];
@@ -643,7 +844,10 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 function start() {
   tickClock(); setInterval(tickClock, 5000);
   if (!useHomey()) demoHomey();
-  if (!useTibber()) demoPrices();
+  if (!useTibber()) {
+    demoPrices();
+    setInterval(() => { const L = S.live; L.power = Math.max(300, Math.round(L.power + (Math.random() - 0.5) * 300)); L.at = new Date(); L.hist.push({ t: Date.now(), p: L.power }); L.hist = L.hist.filter((x) => Date.now() - x.t < 30 * 60000); renderLive(); }, 4000);
+  }
   renderWeather(); renderPower(); renderControl(); updateMode();
   loadWeather(); setInterval(loadWeather, 30 * 60 * 1000);
   if (useTibber()) { loadTibber(); setInterval(loadTibber, 15 * 60 * 1000); }
@@ -652,7 +856,7 @@ function start() {
     setInterval(() => { if (document.visibilityState === 'visible') loadHomey().then(updateMode); }, 5000);
     setInterval(loadFlows, 5 * 60 * 1000);
   }
-  setInterval(() => { renderPower(); renderWeather(); updateMode(); }, 60 * 1000); // flytta "nu"-markeringen och tidsstämplar
+  setInterval(() => { renderPower(); renderWeather(); updateMode(); if ($('#energy').open) renderEnergy(); }, 60 * 1000); // flytta "nu"-markeringen och tidsstämplar
   // Ladda om sidan varje natt kl 03 så att den håller sig pigg på väggen
   setInterval(() => { const d = new Date(); if (d.getHours() === 3 && d.getMinutes() === 0) location.reload(); }, 60 * 1000);
   keepAwake();
