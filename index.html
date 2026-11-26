@@ -86,7 +86,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .prow{display:flex;justify-content:space-between;gap:10px;font-size:15px;padding:6px 0;border-bottom:1px solid var(--line)}
 .prow:last-child{border-bottom:0}
 .prow small{color:var(--muted);font-size:12px;display:block}
-pre.diag{background:var(--inset);border:1px solid var(--edge);border-radius:10px;padding:10px;font-size:12px;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin:0}
+
 /* styrning */
 .moods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .moods button{height:48px;border-radius:14px;border:1px solid var(--edge);background:var(--card);font-size:14px;font-weight:500;padding:0 6px}
@@ -210,9 +210,7 @@ input:focus{outline:2px solid var(--amber);outline-offset:1px}
     <label>Rumsordning (valfritt, kommaseparerade)
       <input name="roomOrder" placeholder="Hall, Kök, Vardagsrum, …">
     </label>
-    <div id="diagout" hidden></div>
     <div class="actions">
-      <button type="button" class="tbtn" data-act="diag">Diagnostik</button>
       <button type="button" class="tbtn" data-act="clearcfg">Rensa allt</button>
       <button type="button" class="tbtn" data-act="closecfg">Avbryt</button>
       <button type="submit" class="tbtn primary">Spara</button>
@@ -298,8 +296,7 @@ function demoHomey() {
     lights.forEach(([n, on, dim], li) => {
       const id = zid + 'd' + li, caps = { onoff: { value: on, setable: true } };
       if (dim !== null) caps.dim = { value: dim, setable: true };
-      caps.measure_power = { value: on ? 5 + li * 4 : 0 };
-      devices[id] = { id, name: n, zone: zid, class: 'light', capabilitiesObj: caps, available: true };
+      devices[id] = { id, name: n, zone: zid, class: 'light', capabilitiesObj: caps, available: true, energyObj: { W: on ? 2.7 + li * 4 : 0.3 } };
     });
   });
   devices.sonos = { id: 'sonos', name: 'Sonos Beam', zone: 'z2', class: 'speaker', available: true,
@@ -365,6 +362,9 @@ const val = (d, c) => { const x = cap(d, c); return x ? x.value : undefined; };
 const isSpeaker = (d) => d.class === 'speaker' || !!cap(d, 'speaker_playing');
 const isLight = (d) => (d.class === 'light' || d.virtualClass === 'light') && !!cap(d, 'onoff');
 const isOn = (d) => val(d, 'onoff') === true;
+// Effekt i watt: uppmätt värde om enheten mäter, annars Homeys egen uppskattning (samma som Energi-fliken i appen)
+const powerOf = (d) => { const m = val(d, 'measure_power'); if (typeof m === 'number') return m; return d.energyObj && typeof d.energyObj.W === 'number' ? d.energyObj.W : null; };
+const fmtW = (w) => (w < 10 ? num(w, 1) : num(Math.round(w), 0)) + ' W';
 
 async function setCap(id, c, value) {
   const d = S.devices[id]; if (!d || !cap(d, c)) return;
@@ -619,8 +619,8 @@ function renderEnergy() {
   const maxD = Math.max(...days.map((d) => d.kwh), 0.1);
   const weekAvg = S.daily.length ? S.daily.reduce((a, d) => a + d.kwh, 0) / S.daily.length : null;
   // största förbrukare enligt Homey
-  const users = Object.values(S.devices).filter((d) => typeof val(d, 'measure_power') === 'number' && val(d, 'measure_power') > 0.5)
-    .sort((a, b) => val(b, 'measure_power') - val(a, 'measure_power')).slice(0, 8);
+  const users = Object.values(S.devices).filter((d) => powerOf(d) >= 1)
+    .sort((a, b) => powerOf(b) - powerOf(a)).slice(0, 8);
   const L = S.live;
   $('#ebody').innerHTML = `
     <div class="ehead"><h3>Energi</h3><button type="button" class="obtn" data-act="energyclose" aria-label="Stäng">✕</button></div>
@@ -641,11 +641,10 @@ function renderEnergy() {
           : '<p class="empty">Ingen dagsdata från Tibber än.</p>'}
       </div>
     </div>
-    <div class="esec">
-      <h4>Drar mest just nu (enligt Homey)</h4>
-      ${users.length ? users.map((d) => `<div class="prow"><span>${esc(d.name)}<small>${esc((S.zones[d.zone] || {}).name || '')}</small></span><span>${num(Math.round(val(d, 'measure_power')), 0)} W</span></div>`).join('')
-        : '<p class="empty">Ingen av dina enheter rapporterar förbrukning än. Golvvärmetermostater och smarta uttag brukar göra det, och dyker då upp här automatiskt.</p>'}
-    </div>`;
+    ${users.length ? `<div class="esec">
+      <h4>Drar mest just nu</h4>
+      ${users.map((d) => `<div class="prow"><span>${esc(d.name)}<small>${esc((S.zones[d.zone] || {}).name || '')}</small></span><span>${fmtW(powerOf(d))}</span></div>`).join('')}
+    </div>` : ''}`;
 }
 
 // ---------- rendering: styrning ----------
@@ -665,8 +664,8 @@ function favDevices() {
   return auto.length ? auto : all.filter(isLight).slice(0, 2);
 }
 function devState(d) {
-  const s = devState0(d), w = val(d, 'measure_power');
-  return typeof w === 'number' && w >= 1 && d.available !== false ? (s ? s + ' · ' : '') + num(Math.round(w), 0) + ' W' : s;
+  const s = devState0(d), w = powerOf(d);
+  return w != null && w >= 1 && d.available !== false ? (s ? s + ' · ' : '') + fmtW(w) : s;
 }
 function devState0(d) {
   if (d.available === false) return 'Inte tillgänglig';
@@ -719,8 +718,8 @@ function renderControl() {
     el.innerHTML = `<div class="rooms grow">${rooms.map((r) => {
       const lights = r.devs.filter(isLight), n = lights.filter(isOn).length;
       const status = lights.length ? (n === 0 ? 'Släckt' : n === lights.length ? (lights.length === 1 ? 'Tänd' : 'Allt på') : n + ' av ' + lights.length + ' på') : r.devs.length + (r.devs.length === 1 ? ' enhet' : ' enheter');
-      const w = r.devs.reduce((a, d) => a + (typeof val(d, 'measure_power') === 'number' ? val(d, 'measure_power') : 0), 0);
-      const st = status + (w >= 1 ? ' · ' + num(Math.round(w), 0) + ' W' : '');
+      const w = r.devs.reduce((a, d) => a + (powerOf(d) || 0), 0);
+      const st = status + (w >= 1 ? ' · ' + fmtW(w) : '');
       return `<div class="room ${n ? 'on' : ''}">
         <button type="button" class="open" data-act="room" data-zone="${esc(r.zone.id)}"><b>${esc(r.zone.name)}</b><small>${st}</small></button>
         ${lights.length ? `<button type="button" class="ibtn ${n ? 'lit' : ''}" data-act="roomtoggle" data-zone="${esc(r.zone.id)}" aria-label="${n ? 'Släck' : 'Tänd'} ${esc(r.zone.name)}">${ICON.bulb('#9AA3AE')}</button>` : ''}
@@ -787,8 +786,6 @@ document.addEventListener('click', (ev) => {
     case 'settings': openSettings(); break;
     case 'energy': renderEnergy(); $('#energy').showModal(); break;
     case 'energyclose': $('#energy').close(); break;
-    case 'diag': runDiag(); break;
-    case 'copydiag': { const t = $('#diagtext'); if (t) { t.select(); try { navigator.clipboard.writeText(t.value).then(() => toast('Kopierat')); } catch (e) { document.execCommand('copy'); toast('Kopierat'); } } break; }
     case 'closecfg': $('#settings').close(); break;
     case 'clearcfg': if (confirm('Rensa alla inställningar på den här enheten?')) { store.del('cfg'); location.reload(); } break;
   }
@@ -808,34 +805,6 @@ $('#sform').addEventListener('submit', () => {
   store.set('cfg', next);
   location.reload();
 });
-
-// ---------- diagnostik: visar vad Homeys energi-API svarar, för att kunna bygga vidare ----------
-async function runDiag() {
-  const out = $('#diagout'); out.hidden = false;
-  if (!useHomey()) { out.innerHTML = '<p class="hint">Fyll i Homeys IP-adress och API-nyckel och spara först.</p>'; return; }
-  out.innerHTML = '<p class="hint">Hämtar från Homey…</p>';
-  const res = {};
-  const raw = async (path) => {
-    try {
-      const r = await fetch(homeyBase() + path, { headers: { Authorization: 'Bearer ' + cfg.homeyKey } });
-      const txt = await r.text(); let body; try { body = JSON.parse(txt); } catch (e) { body = txt.slice(0, 300); }
-      return r.ok ? body : { status: r.status, svar: body };
-    } catch (e) { return 'FEL: ' + e.message; }
-  };
-  const me = await raw('/api/manager/sessions/session/me');
-  res.nyckelnsBehorigheter = me && me.scopes ? me.scopes : me;
-  res.insightsTest = await raw('/api/manager/insights/log');
-  if (res.insightsTest && !res.insightsTest.status && typeof res.insightsTest === 'object') res.insightsTest = 'OK (' + (Array.isArray(res.insightsTest) ? res.insightsTest.length : Object.keys(res.insightsTest).length) + ' loggar)';
-  res.live = await raw('/api/manager/energy/live');
-  res.reportsAvailable = await raw('/api/manager/energy/reports/available');
-  const measuring = Object.values(S.devices).filter((d) => cap(d, 'measure_power') || cap(d, 'meter_power'))
-    .map((d) => ({ name: d.name, class: d.class, measure_power: val(d, 'measure_power'), meter_power: val(d, 'meter_power') }));
-  res.devicesWithEnergy = measuring;
-  let txt = JSON.stringify(res, null, 2);
-  if (txt.length > 15000) txt = txt.slice(0, 15000) + '\n… (avkortat)';
-  out.innerHTML = `<p class="hint">Kopiera texten och klistra in den i chatten. Den innehåller inga nycklar.</p><textarea id="diagtext" readonly rows="8" style="width:100%;font:12px ui-monospace,monospace;background:var(--inset);color:var(--text);border:1px solid var(--edge);border-radius:10px;padding:10px"></textarea><div class="actions"><button type="button" class="tbtn" data-act="copydiag">Kopiera</button></div>`;
-  $('#diagtext').value = txt;
-}
 
 // ---------- start ----------
 function updateMode() {

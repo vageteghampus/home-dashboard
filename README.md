@@ -27,7 +27,6 @@ Filer: `index.html` (själva sidan), `manifest.webmanifest` och ikonerna (för "
    - **visa enheter** och **styra enheter**
    - **visa zoner**
    - **visa Flows** och **starta Flows**
-   - **visa Insights** (valfritt, ger sidan tillgång till Homeys energiöversikt)
 3. Kopiera nyckeln direkt (den visas bara en gång).
 
 Ta inte med fler behörigheter än så. När låset kopplas in senare kan sidan bara **låsa**, aldrig låsa upp.
@@ -77,9 +76,9 @@ Knappar utan ett matchande Flow är gråa, och sidan talar om vilka som saknas. 
 ## Energi
 
 - **Elkortet** visar elpriset, effekten just nu (med Pulse) och förbrukningen idag jämfört med samma tid igår.
-- **Tryck på raden "Idag …"** längst ner på elkortet för att öppna energivyn: förbrukning per timme idag färgad efter om timmen var billig eller dyr, de senaste sju dagarna, och vilka enheter som drar mest just nu enligt Homey.
-- **Rumsrutorna** visar watt när rummet har enheter som mäter sin förbrukning (t.ex. smarta uttag och golvvärmetermostater).
-- **Diagnostik** (under kugghjulet) visar vad Homeys energifunktioner svarar. Klistra in texten i chatten med Claude för att bygga vidare på energidelen. Den innehåller inga nycklar.
+- **Tryck på raden "Idag …"** längst ner på elkortet för att öppna energivyn: förbrukning per timme idag färgad efter om timmen var billig eller dyr, de senaste sju dagarna. Där syns också vilka enheter som drar mest just nu.
+- **Rumsrutorna** visar hur många watt rummet drar just nu.
+- Effekten per enhet och rum är antingen uppmätt (smarta uttag, termostater) eller Homeys egen uppskattning för lampor, samma siffror som i Energi-fliken i Homey-appen. Uppskattningen går att justera per enhet i Homey under enhetens energiinställningar.
 
 ## Felsökning
 
