@@ -27,7 +27,7 @@ Filer: `index.html` (själva sidan), `manifest.webmanifest` och ikonerna (för "
    - **visa enheter** och **styra enheter**
    - **visa zoner**
    - **visa Flows** och **starta Flows**
-   - **visa energi** (valfritt, behövs bara för Diagnostik-knappen)
+   - **visa Insights** (valfritt, ger sidan tillgång till Homeys energiöversikt)
 3. Kopiera nyckeln direkt (den visas bara en gång).
 
 Ta inte med fler behörigheter än så. När låset kopplas in senare kan sidan bara **låsa**, aldrig låsa upp.

@@ -816,7 +816,7 @@ async function runDiag() {
   out.innerHTML = '<p class="hint">Hämtar från Homey…</p>';
   const res = {};
   for (const [k, path] of [['live', '/api/manager/energy/live'], ['reportsAvailable', '/api/manager/energy/reports/available']]) {
-    try { res[k] = await homey(path); } catch (e) { res[k] = 'FEL: ' + (e.message === 'auth' ? 'saknar behörighet (lägg till "visa energi" på API-nyckeln)' : e.message); }
+    try { res[k] = await homey(path); } catch (e) { res[k] = 'FEL: ' + (e.message === 'auth' ? 'saknar behörighet (lägg till Insights-behörigheten på API-nyckeln)' : e.message); }
   }
   const measuring = Object.values(S.devices).filter((d) => cap(d, 'measure_power') || cap(d, 'meter_power'))
     .map((d) => ({ name: d.name, class: d.class, measure_power: val(d, 'measure_power'), meter_power: val(d, 'meter_power') }));
