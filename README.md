@@ -87,7 +87,7 @@ Knappar utan ett matchande Flow är gråa, och sidan talar om vilka som saknas. 
 
 ## Bra att veta
 
-- Enheterna uppdateras var 5:e sekund, elpriset var 15:e minut och vädret var 30:e minut.
+- Enheterna uppdateras var 5:e sekund, elpriset var 15:e minut och vädret var 30:e minut. Väder- och elkortet visar när de senast uppdaterades; texten blir orange om det dröjt för länge. Tappar sidan kontakten med Homey syns det uppe till höger.
 - Sidan håller skärmen vaken medan den är öppen och laddar om sig själv kl 03 varje natt.
 - På en väggplatta: använd en kioskwebbläsare (t.ex. Fully Kiosk Browser på Android) eller Guidad åtkomst på iPad.
 - Väderdata: SMHI, licens CC BY 4.0.

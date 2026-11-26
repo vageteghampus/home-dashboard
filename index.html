@@ -36,7 +36,8 @@ main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .col-control{order:-1}
 .card{background:var(--card);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:16px;min-width:0}
 .card-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.src{font-size:12px;color:var(--muted)}
+.src{font-size:12px;color:var(--muted);text-align:right}
+.src.stale{color:var(--dear)}
 .big{font-size:48px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
 .sub{font-size:14px;color:var(--muted)}
 .err{font-size:14px;color:var(--dear);line-height:1.4}
@@ -243,6 +244,7 @@ const S = {
   prices: null, consumption: null,
   weather: null,
   err: { homey: null, tibber: null, weather: null },
+  updated: { homey: null, tibber: null, weather: null },
   day: 'today', room: null, lastMood: null, moodNote: ''
 };
 
@@ -302,7 +304,7 @@ async function loadHomey() {
   if (!useHomey()) return;
   try {
     const [devices, zones] = await Promise.all([homey('/api/manager/devices/device'), homey('/api/manager/zones/zone')]);
-    S.devices = devices || {}; S.zones = zones || {}; S.err.homey = null;
+    S.devices = devices || {}; S.zones = zones || {}; S.err.homey = null; S.updated.homey = new Date();
   } catch (e) { S.err.homey = e.message === 'auth' ? 'auth' : 'net'; }
   renderControl();
 }
@@ -342,6 +344,14 @@ async function startMood(name) {
 }
 const findFlow = (name) => S.flows.find((f) => f.name && f.name.trim().toLowerCase() === name.toLowerCase() && f.enabled !== false);
 
+// "Uppdaterad 23:45", orange om det är mer än 2,5 gånger så länge sedan som det borde vara
+function stamp(key, everyMin, label) {
+  const t = S.updated[key];
+  if (!t) return `<span class="src">${label}</span>`;
+  const stale = Date.now() - t.getTime() > everyMin * 2.5 * 60000;
+  return `<span class="src${stale ? ' stale' : ''}">${label} · ${stale ? 'senast' : 'uppdaterad'} ${hhmm(t)}</span>`;
+}
+
 // ---------- Tibber ----------
 async function loadTibber() {
   if (!useTibber()) return;
@@ -358,7 +368,7 @@ async function loadTibber() {
     const mid = new Date(); mid.setHours(0, 0, 0, 0);
     const nodes = ((home.consumption && home.consumption.nodes) || []).filter((n) => new Date(n.from) >= mid && n.consumption != null);
     S.consumption = nodes.length ? { kwh: nodes.reduce((a, n) => a + n.consumption, 0), cost: nodes.reduce((a, n) => a + (n.cost || 0), 0) } : null;
-    S.err.tibber = null;
+    S.err.tibber = null; S.updated.tibber = new Date();
   } catch (e) { S.err.tibber = e.message === 'auth' ? 'auth' : e.message === 'nohome' ? 'nohome' : 'net'; }
   renderPower();
 }
@@ -396,7 +406,7 @@ async function loadWeather() {
       days.push({ label: d0.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', ''), max: Math.max(...ps.map((p) => p.temp)), min: Math.min(...ps.map((p) => p.temp)), sym: ok(noon.sym) ? noon.sym : 5 });
     }
     S.weather = { temp: cur.temp, wind: ok(cur.wind) ? cur.wind : null, sym: ok(cur.sym) ? cur.sym : 5, days };
-    S.err.weather = null;
+    S.err.weather = null; S.updated.weather = new Date();
   } catch (e) { S.err.weather = 'net'; }
   renderWeather();
 }
@@ -404,7 +414,7 @@ async function loadWeather() {
 // ---------- rendering: väder ----------
 function renderWeather() {
   const el = $('#weather'), w = S.weather;
-  const head = `<div class="card-head"><h2>Väder · ${esc(cfg.place || DEFAULTS.place)}</h2><span class="src">SMHI</span></div>`;
+  const head = `<div class="card-head"><h2>Väder · ${esc(cfg.place || DEFAULTS.place)}</h2>${stamp('weather', 30, 'SMHI')}</div>`;
   if (!w) { el.innerHTML = head + (S.err.weather ? '<p class="err">Kunde inte hämta väder från SMHI just nu. Försöker igen om en stund.</p>' : '<p class="empty">Hämtar väder…</p>'); return; }
   const deg = (t) => num(Math.round(t), 0) + '°';
   el.innerHTML = head + `
@@ -418,7 +428,7 @@ function renderWeather() {
 // ---------- rendering: el ----------
 function renderPower() {
   const el = $('#power'), p = S.prices;
-  const head = `<div class="card-head"><h2>Elpris</h2><span class="src">Tibber${useTibber() ? '' : ' · exempeldata'}</span></div>`;
+  const head = `<div class="card-head"><h2>Elpris</h2>${useTibber() ? stamp('tibber', 15, 'Tibber') : '<span class="src">Tibber · exempeldata</span>'}</div>`;
   if (S.err.tibber) {
     const msg = { auth: 'Tibber godkände inte din token. Kontrollera den under Inställningar.', nohome: 'Hittade inget hem med aktivt elavtal på ditt Tibber-konto.', net: 'Kunde inte nå Tibber just nu. Försöker igen om en stund.' }[S.err.tibber];
     if (!p) { el.innerHTML = head + `<p class="err">${msg}</p>`; return; }
@@ -623,7 +633,7 @@ function updateMode() {
   if (!useTibber()) demoParts.push('elpris');
   const m = $('#mode');
   if (demoParts.length) { m.hidden = false; m.textContent = 'Exempeldata: ' + demoParts.join(' och '); m.className = 'chip'; }
-  else if (S.err.homey) { m.hidden = false; m.textContent = 'Ingen kontakt med Homey'; m.className = 'chip warn'; }
+  else if (S.err.homey) { m.hidden = false; m.textContent = 'Ingen kontakt med Homey' + (S.updated.homey ? ' sedan ' + hhmm(S.updated.homey) : ''); m.className = 'chip warn'; }
   else m.hidden = true;
 }
 let wakeLock = null;
@@ -642,7 +652,7 @@ function start() {
     setInterval(() => { if (document.visibilityState === 'visible') loadHomey().then(updateMode); }, 5000);
     setInterval(loadFlows, 5 * 60 * 1000);
   }
-  setInterval(() => { renderPower(); }, 60 * 1000); // flytta "nu"-markeringen
+  setInterval(() => { renderPower(); renderWeather(); updateMode(); }, 60 * 1000); // flytta "nu"-markeringen och tidsstämplar
   // Ladda om sidan varje natt kl 03 så att den håller sig pigg på väggen
   setInterval(() => { const d = new Date(); if (d.getHours() === 3 && d.getMinutes() === 0) location.reload(); }, 60 * 1000);
   keepAwake();
