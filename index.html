@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F1216">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hemma">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Hemma</title>
+<style>
+:root{
+  --bg:#0F1216; --card:#1A1E24; --inset:#12161B; --line:#2A3038; --edge:#2E353E; --btn:#22272E;
+  --text:#EDEFF2; --muted:#9AA3AE; --amber:#F5B544; --warm:#2E2715; --cheap:#4FC3B0; --dear:#F08A4B; --mid:#55606E;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:disabled{cursor:not-allowed;opacity:.45}
+h2{margin:0;font-size:15px;font-weight:500;color:var(--muted)}
+.app{padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:16px;max-width:1600px;margin:0 auto}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.clock{font-size:44px;font-weight:500;line-height:1;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.date{font-size:16px;color:var(--muted)}
+.hleft{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+.hright{display:flex;align-items:center;gap:8px}
+.chip{font-size:12px;color:var(--muted);border:1px solid var(--edge);border-radius:999px;padding:5px 10px;white-space:nowrap}
+.chip.warn{color:var(--dear);border-color:#5a3a26}
+.hbtn{height:44px;min-width:44px;padding:0 14px;white-space:nowrap;border-radius:12px;border:1px solid var(--edge);background:var(--card);display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px}
+main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.col-control{order:-1}
+.card{background:var(--card);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.src{font-size:12px;color:var(--muted)}
+.big{font-size:48px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.sub{font-size:14px;color:var(--muted)}
+.err{font-size:14px;color:var(--dear);line-height:1.4}
+.empty{font-size:14px;color:var(--muted);line-height:1.4}
+/* väder */
+.wnow{display:flex;align-items:center;gap:16px}
+.fc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;border-top:1px solid var(--line);padding-top:14px}
+.fc div{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.fc b{font-size:15px;font-weight:500;color:var(--text);white-space:nowrap}
+/* el */
+.tabs{display:flex;gap:4px;background:var(--inset);border-radius:12px;padding:4px;align-self:flex-start}
+.tabs button{height:36px;padding:0 16px;border-radius:9px;font-size:14px}
+.tabs button[aria-pressed="true"]{background:var(--edge)}
+.bars{display:flex;align-items:flex-end;gap:2px;height:140px}
+.bars i{flex:1;border-radius:3px;min-height:6px;display:block}
+.bars i.now{box-shadow:0 0 0 2px var(--text)}
+.axis{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px}
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.duo>div{background:var(--inset);border-radius:14px;padding:12px 14px}
+.duo .k{font-size:13px;color:var(--muted)}
+.duo .v{font-size:17px;font-weight:500;margin-top:4px}
+.foot{border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;gap:8px;font-size:15px;margin-top:auto}
+/* styrning */
+.moods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.moods button{height:48px;border-radius:14px;border:1px solid var(--edge);background:var(--card);font-size:14px;font-weight:500;padding:0 6px}
+.moods button.active{background:var(--text);color:var(--bg);border-color:var(--text)}
+.note{font-size:13px;color:var(--muted);min-height:16px;margin-top:-8px}
+.favs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fav{height:56px;border-radius:14px;background:var(--card);display:flex;align-items:center;gap:10px;padding:0 14px;text-align:left;min-width:0}
+.fav.on{background:var(--warm)}
+.fav span{display:flex;flex-direction:column;min-width:0}
+.fav b{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fav small{font-size:12px;color:var(--muted)}
+.rooms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(64px,auto);gap:8px}
+.room{background:var(--card);border-radius:16px;display:flex;align-items:center;padding-right:8px;min-width:0}
+.room.on{background:var(--warm)}
+.room .open{flex:1;min-width:0;align-self:stretch;text-align:left;padding:10px 0 10px 14px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.room b{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room small{font-size:12px;color:var(--muted)}
+.ibtn{width:44px;height:44px;flex:none;border-radius:12px;background:var(--btn);display:flex;align-items:center;justify-content:center}
+.ibtn.lit{background:var(--amber)}
+.ibtn.lit svg{stroke:var(--bg)}
+.obtn{width:44px;height:44px;flex:none;border-radius:12px;border:1px solid #3A4048;font-size:18px;display:flex;align-items:center;justify-content:center}
+.tbtn{height:44px;padding:0 14px;border-radius:12px;border:1px solid #3A4048;font-size:14px;white-space:nowrap}
+.panel{background:var(--card);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.phead{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.phead .t{flex:1;font-size:18px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dev{background:var(--inset);border-radius:14px;padding:8px 10px;display:flex;align-items:center;gap:10px;min-width:0}
+.dev.on{background:var(--warm)}
+.dev .meta{flex:1;min-width:0}
+.dev b{display:block;font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dev small{font-size:12px;color:var(--muted)}
+svg{flex:none}
+/* inställningar */
+dialog{background:var(--card);color:var(--text);border:1px solid var(--edge);border-radius:20px;padding:0;width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog form{padding:22px;display:flex;flex-direction:column;gap:14px}
+dialog h3{margin:0;font-size:20px}
+label{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+input{font:inherit;font-size:16px;color:var(--text);background:var(--inset);border:1px solid var(--edge);border-radius:10px;padding:11px 12px;width:100%}
+input:focus{outline:2px solid var(--amber);outline-offset:1px}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px}
+.primary{background:var(--amber);color:var(--bg);font-weight:600;border:0}
+.hint{font-size:13px;color:var(--muted);line-height:1.4;margin:0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100vw - 32px)}
+.toast.show{opacity:1}
+/* platta och större: tre kolumner som fyller skärmen */
+@media (min-width:900px){
+  main{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .col-control{order:0}
+}
+@media (min-width:900px) and (min-height:600px){
+  .app{height:100vh;height:100dvh;padding:24px 28px}
+  main{flex:1;min-height:0}
+  .col{min-height:0;overflow:auto}
+  .clock{font-size:60px}
+  .grow{flex:1;min-height:0}
+  .rooms.grow{grid-auto-rows:minmax(60px,112px);align-content:start}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="hleft">
+      <div class="clock" id="clock">--:--</div>
+      <div class="date" id="date"></div>
+    </div>
+    <div class="hright">
+      <span class="chip" id="mode" hidden></span>
+      <button class="hbtn" type="button" data-act="alloff">Släck allt</button>
+      <button class="hbtn" type="button" data-act="settings" aria-label="Inställningar">
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="col col-weather">
+      <section class="card" id="weather" aria-live="polite"></section>
+      <section class="card grow" id="calendar">
+        <h2>Kalender</h2>
+        <p class="empty">Kalendern kopplas in i nästa version.</p>
+      </section>
+    </div>
+    <div class="col">
+      <section class="card grow" id="power"></section>
+    </div>
+    <div class="col col-control">
+      <div class="moods" id="moods"></div>
+      <div class="note" id="moodnote"></div>
+      <div class="favs" id="favs"></div>
+      <div id="rooms" class="grow" style="display:flex;flex-direction:column;min-height:0"></div>
+    </div>
+  </main>
+</div>
+
+<dialog id="settings">
+  <form method="dialog" id="sform">
+    <h3>Inställningar</h3>
+    <p class="hint">Allt sparas bara i den här enhetens webbläsare. Lämnar du ett fält tomt visas exempeldata för den delen.</p>
+    <label>Homeys IP-adress
+      <input name="homey" inputmode="decimal" autocomplete="off" placeholder="t.ex. 192.168.1.50">
+    </label>
+    <label>Homey API-nyckel
+      <input name="homeyKey" type="password" autocomplete="off" spellcheck="false">
+    </label>
+    <label>Tibber-token
+      <input name="tibber" type="password" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="row2">
+      <label>Latitud <input name="lat" inputmode="decimal" placeholder="62.3908"></label>
+      <label>Longitud <input name="lon" inputmode="decimal" placeholder="17.3069"></label>
+    </div>
+    <label>Ortnamn <input name="place" placeholder="Sundsvall"></label>
+    <label>Stämningar (namn på dina Flows, kommaseparerade)
+      <input name="moods" placeholder="Morgon, Kväll, Hemma, Borta">
+    </label>
+    <label>Favoriter (enhetsnamn, kommaseparerade)
+      <input name="favorites" placeholder="Fasadbelysning, Sonos Beam">
+    </label>
+    <label>Rumsordning (valfritt, kommaseparerade)
+      <input name="roomOrder" placeholder="Hall, Kök, Vardagsrum, …">
+    </label>
+    <div class="actions">
+      <button type="button" class="tbtn" data-act="clearcfg">Rensa allt</button>
+      <button type="button" class="tbtn" data-act="closecfg">Avbryt</button>
+      <button type="submit" class="tbtn primary">Spara</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+'use strict';
+// ---------- hjälpare ----------
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = (n, d = 1) => Number(n).toLocaleString('sv-SE', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+const hhmm = (dt) => dt.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('hemma.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('hemma.' + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem('hemma.' + k); } catch (e) {} }
+};
+const list = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+const DEFAULTS = { homey: '', homeyKey: '', tibber: '', lat: '62.3908', lon: '17.3069', place: 'Sundsvall', moods: 'Morgon, Kväll, Hemma, Borta', favorites: '', roomOrder: '' };
+let cfg = Object.assign({}, DEFAULTS, store.get('cfg', {}));
+const useHomey = () => !!(cfg.homey && cfg.homeyKey);
+const useTibber = () => !!cfg.tibber;
+
+// ---------- ikoner ----------
+const ICON = {
+  bulb: (c = 'currentColor') => `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z"/></svg>`,
+  play: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7Z"/></svg>`,
+  pause: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`,
+  back: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>`,
+  lock: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`,
+  dot: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="6"/></svg>`,
+  sun: (s = 26) => `<svg aria-hidden="true" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#F5B544" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg>`,
+  part: (s = 26) => `<svg aria-hidden="true" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="3" stroke="#F5B544"/><path d="M8 19a4 4 0 0 1 .5-8A5 5 0 0 1 18 11.5 3.5 3.5 0 0 1 20 18.9H8" stroke="#9AA3AE"/></svg>`,
+  cloud: (s = 26) => `<svg aria-hidden="true" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="1.6" stroke-linecap="round"><path d="M6 18a4 4 0 0 1 .5-8A5 5 0 0 1 16 10.5 3.5 3.5 0 0 1 18 17H6"/></svg>`,
+  rain: (s = 26) => `<svg aria-hidden="true" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#8FB8E8" stroke-width="1.6" stroke-linecap="round"><path d="M6 14a4 4 0 0 1 .5-8A5 5 0 0 1 16 6.5 3.5 3.5 0 0 1 18 13H6"/><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3"/></svg>`,
+  snow: (s = 26) => `<svg aria-hidden="true" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#B8D4F0" stroke-width="1.6" stroke-linecap="round"><path d="M6 14a4 4 0 0 1 .5-8A5 5 0 0 1 16 6.5 3.5 3.5 0 0 1 18 13H6"/><path d="M8 17v.01M12 18v.01M16 17v.01M10 20.5v.01M14 20.5v.01"/></svg>`
+};
+
+// ---------- klocka ----------
+function tickClock() {
+  const d = new Date();
+  $('#clock').textContent = hhmm(d);
+  $('#date').textContent = d.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+// ---------- tillstånd ----------
+const S = {
+  devices: {}, zones: {}, flows: [],
+  prices: null, consumption: null,
+  weather: null,
+  err: { homey: null, tibber: null, weather: null },
+  day: 'today', room: null, lastMood: null, moodNote: ''
+};
+
+// ---------- exempeldata ----------
+function demoHomey() {
+  const zones = {}, devices = {};
+  const rooms = [
+    ['Hall', [['Fönsterspottar', true, 0.6], ['Taklampa', false, 0.8]]],
+    ['Kök', [['Taklampa', true, 0.7], ['Bänkbelysning', true, 0.5]]],
+    ['Vardagsrum', [['Golvlampa', true, 0.4], ['Fönsterlampa', true, 0.3]]],
+    ['Allrum uppe', [['Spotlights', false, 0.6]]],
+    ['Sovrum 1', [['Taklampa', false, 0.6]]],
+    ['Sovrum 2', [['Taklampa', false, 0.6]]],
+    ['Badrum', [['Spotlights', false, 0.8]]],
+    ['Utomhus', [['Fasadbelysning', true, null]]]
+  ];
+  rooms.forEach(([zn, lights], zi) => {
+    const zid = 'z' + zi; zones[zid] = { id: zid, name: zn };
+    lights.forEach(([n, on, dim], li) => {
+      const id = zid + 'd' + li, caps = { onoff: { value: on, setable: true } };
+      if (dim !== null) caps.dim = { value: dim, setable: true };
+      devices[id] = { id, name: n, zone: zid, class: 'light', capabilitiesObj: caps, available: true };
+    });
+  });
+  devices.sonos = { id: 'sonos', name: 'Sonos Beam', zone: 'z2', class: 'speaker', available: true,
+    capabilitiesObj: { speaker_playing: { value: false, setable: true }, volume_set: { value: 0.22, setable: true } } };
+  devices.mower = { id: 'mower', name: 'Gardena-klippare', zone: 'z7', class: 'other', available: true, capabilitiesObj: {} };
+  S.zones = zones; S.devices = devices;
+  S.flows = list(cfg.moods).map((n, i) => ({ id: 'f' + i, name: n, kind: 'demo' }));
+}
+function demoPrices() {
+  const t = [32,30,29,28,29,34,48,72,85,78,62,55,50,48,52,61,80,96,88,70,55,44,38,34];
+  const m = [31,29,27,26,27,31,44,66,79,74,60,52,47,45,49,58,74,90,84,66,52,42,36,33];
+  const mk = (arr, off) => arr.map((v, h) => { const d = new Date(); d.setDate(d.getDate() + off); d.setHours(h, 0, 0, 0); return { total: v / 100, startsAt: d.toISOString() }; });
+  const today = mk(t, 0);
+  S.prices = { today, tomorrow: mk(m, 1), current: today[new Date().getHours()] };
+  S.consumption = { kwh: 34.2, cost: 21 };
+}
+
+// ---------- Homey ----------
+function homeyBase() {
+  const h = cfg.homey.trim().replace(/\/+$/, '');
+  if (/^https?:\/\//i.test(h)) return h;
+  return 'https://' + h.replace(/\./g, '-') + '.homey.homeylocal.com';
+}
+async function homey(path, opts = {}) {
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 10000);
+  try {
+    const r = await fetch(homeyBase() + path, Object.assign({}, opts, { signal: ctl.signal,
+      headers: { Authorization: 'Bearer ' + cfg.homeyKey, 'Content-Type': 'application/json' } }));
+    if (r.status === 401 || r.status === 403) throw new Error('auth');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const txt = await r.text(); return txt ? JSON.parse(txt) : null;
+  } finally { clearTimeout(to); }
+}
+async function loadHomey() {
+  if (!useHomey()) return;
+  try {
+    const [devices, zones] = await Promise.all([homey('/api/manager/devices/device'), homey('/api/manager/zones/zone')]);
+    S.devices = devices || {}; S.zones = zones || {}; S.err.homey = null;
+  } catch (e) { S.err.homey = e.message === 'auth' ? 'auth' : 'net'; }
+  renderControl();
+}
+async function loadFlows() {
+  if (!useHomey()) return;
+  const out = [];
+  try { Object.values(await homey('/api/manager/flow/flow') || {}).forEach((f) => out.push({ id: f.id, name: f.name, kind: 'flow', enabled: f.enabled })); } catch (e) {}
+  try { Object.values(await homey('/api/manager/flow/advancedflow') || {}).forEach((f) => out.push({ id: f.id, name: f.name, kind: 'advancedflow', enabled: f.enabled })); } catch (e) {}
+  S.flows = out; renderControl();
+}
+const cap = (d, c) => d && d.capabilitiesObj && d.capabilitiesObj[c];
+const val = (d, c) => { const x = cap(d, c); return x ? x.value : undefined; };
+const isSpeaker = (d) => d.class === 'speaker' || !!cap(d, 'speaker_playing');
+const isLight = (d) => (d.class === 'light' || d.virtualClass === 'light') && !!cap(d, 'onoff');
+const isOn = (d) => val(d, 'onoff') === true;
+
+async function setCap(id, c, value) {
+  const d = S.devices[id]; if (!d || !cap(d, c)) return;
+  const prev = d.capabilitiesObj[c].value;
+  d.capabilitiesObj[c].value = value; renderControl();
+  if (!useHomey()) return;
+  try {
+    await homey(`/api/manager/devices/device/${encodeURIComponent(id)}/capability/${encodeURIComponent(c)}`, { method: 'PUT', body: JSON.stringify({ value }) });
+  } catch (e) {
+    d.capabilitiesObj[c].value = prev; renderControl();
+    toast('Kunde inte styra ' + d.name);
+  }
+}
+async function startMood(name) {
+  const f = findFlow(name); if (!f) { toast('Hittar inget Flow som heter ”' + name + '”'); return; }
+  S.lastMood = name;
+  S.moodNote = name + ' startad ' + hhmm(new Date());
+  renderControl();
+  if (f.kind === 'demo') return;
+  try { await homey(`/api/manager/flow/${f.kind}/${encodeURIComponent(f.id)}/trigger`, { method: 'POST', body: '{}' }); setTimeout(loadHomey, 1500); }
+  catch (e) { S.lastMood = null; S.moodNote = ''; renderControl(); toast('Kunde inte starta ' + name); }
+}
+const findFlow = (name) => S.flows.find((f) => f.name && f.name.trim().toLowerCase() === name.toLowerCase() && f.enabled !== false);
+
+// ---------- Tibber ----------
+async function loadTibber() {
+  if (!useTibber()) return;
+  const q = '{ viewer { homes { currentSubscription { priceInfo { current { total startsAt } today { total startsAt } tomorrow { total startsAt } } } consumption(resolution: HOURLY, last: 30) { nodes { from consumption cost } } } } }';
+  try {
+    const r = await fetch('https://api.tibber.com/v1-beta/gql', { method: 'POST', headers: { Authorization: 'Bearer ' + cfg.tibber, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
+    if (r.status === 401 || r.status === 403) throw new Error('auth');
+    const j = await r.json();
+    if (j.errors && j.errors.length) throw new Error(/token|auth/i.test(j.errors[0].message) ? 'auth' : 'api');
+    const home = (j.data.viewer.homes || []).find((h) => h.currentSubscription && h.currentSubscription.priceInfo);
+    if (!home) throw new Error('nohome');
+    const pi = home.currentSubscription.priceInfo;
+    S.prices = { today: pi.today || [], tomorrow: pi.tomorrow || [], current: pi.current };
+    const mid = new Date(); mid.setHours(0, 0, 0, 0);
+    const nodes = ((home.consumption && home.consumption.nodes) || []).filter((n) => new Date(n.from) >= mid && n.consumption != null);
+    S.consumption = nodes.length ? { kwh: nodes.reduce((a, n) => a + n.consumption, 0), cost: nodes.reduce((a, n) => a + (n.cost || 0), 0) } : null;
+    S.err.tibber = null;
+  } catch (e) { S.err.tibber = e.message === 'auth' ? 'auth' : e.message === 'nohome' ? 'nohome' : 'net'; }
+  renderPower();
+}
+
+// ---------- SMHI ----------
+const WSYMB = ['', 'Klart', 'Nästan klart', 'Växlande molnighet', 'Halvklart', 'Molnigt', 'Mulet', 'Dimma', 'Lätta regnskurar', 'Regnskurar', 'Kraftiga regnskurar', 'Åskskurar', 'Lätta byar av snöblandat regn', 'Byar av snöblandat regn', 'Kraftiga byar av snöblandat regn', 'Lätta snöbyar', 'Snöbyar', 'Kraftiga snöbyar', 'Lätt regn', 'Regn', 'Kraftigt regn', 'Åska', 'Lätt snöblandat regn', 'Snöblandat regn', 'Kraftigt snöblandat regn', 'Lätt snöfall', 'Snöfall', 'Kraftigt snöfall'];
+function wIcon(code, size) {
+  const c = Math.round(code);
+  if (c <= 2) return ICON.sun(size);
+  if (c <= 4) return ICON.part(size);
+  if (c <= 7) return ICON.cloud(size);
+  if ((c >= 15 && c <= 17) || c >= 25) return ICON.snow(size);
+  if ((c >= 12 && c <= 14) || (c >= 22 && c <= 24)) return ICON.snow(size);
+  return ICON.rain(size);
+}
+async function loadWeather() {
+  const lat = Number(cfg.lat || DEFAULTS.lat).toFixed(4), lon = Number(cfg.lon || DEFAULTS.lon).toFixed(4);
+  try {
+    const r = await fetch(`https://opendata-download-metfcst.smhi.se/api/category/snow1g/version/1/geotype/point/lon/${lon}/lat/${lat}/data.json`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    const series = j.timeSeries || j.time_series || Object.values(j).find((v) => Array.isArray(v) && v.length && v[0] && v[0].data) || [];
+    const ok = (v) => typeof v === 'number' && v !== 9999;
+    const pts = series.map((e) => ({ t: new Date(e.time || e.validTime), temp: e.data && e.data.air_temperature, wind: e.data && e.data.wind_speed, sym: e.data && e.data.symbol_code }))
+      .filter((p) => ok(p.temp));
+    if (!pts.length) throw new Error('empty');
+    const now = Date.now();
+    const cur = pts.find((p) => p.t.getTime() >= now - 30 * 60 * 1000) || pts[0];
+    const days = [];
+    for (let i = 1; i <= 4; i++) {
+      const d0 = new Date(); d0.setHours(0, 0, 0, 0); d0.setDate(d0.getDate() + i);
+      const d1 = new Date(d0); d1.setDate(d1.getDate() + 1);
+      const ps = pts.filter((p) => p.t >= d0 && p.t < d1); if (!ps.length) continue;
+      const noon = ps.reduce((a, p) => Math.abs(p.t.getHours() - 13) < Math.abs(a.t.getHours() - 13) ? p : a, ps[0]);
+      days.push({ label: d0.toLocaleDateString('sv-SE', { weekday: 'short' }).replace('.', ''), max: Math.max(...ps.map((p) => p.temp)), min: Math.min(...ps.map((p) => p.temp)), sym: ok(noon.sym) ? noon.sym : 5 });
+    }
+    S.weather = { temp: cur.temp, wind: ok(cur.wind) ? cur.wind : null, sym: ok(cur.sym) ? cur.sym : 5, days };
+    S.err.weather = null;
+  } catch (e) { S.err.weather = 'net'; }
+  renderWeather();
+}
+
+// ---------- rendering: väder ----------
+function renderWeather() {
+  const el = $('#weather'), w = S.weather;
+  const head = `<div class="card-head"><h2>Väder · ${esc(cfg.place || DEFAULTS.place)}</h2><span class="src">SMHI</span></div>`;
+  if (!w) { el.innerHTML = head + (S.err.weather ? '<p class="err">Kunde inte hämta väder från SMHI just nu. Försöker igen om en stund.</p>' : '<p class="empty">Hämtar väder…</p>'); return; }
+  const deg = (t) => num(Math.round(t), 0) + '°';
+  el.innerHTML = head + `
+    <div class="wnow">${wIcon(w.sym, 56)}
+      <div><div class="big">${deg(w.temp)}</div>
+      <div class="sub" style="margin-top:4px">${esc(WSYMB[Math.round(w.sym)] || '')}${w.wind != null ? ' · vind ' + num(Math.round(w.wind), 0) + ' m/s' : ''}</div></div>
+    </div>
+    <div class="fc">${w.days.map((d) => `<div><span>${esc(d.label)}</span>${wIcon(d.sym, 26)}<b>${deg(d.max)} / ${deg(d.min)}</b></div>`).join('')}</div>`;
+}
+
+// ---------- rendering: el ----------
+function renderPower() {
+  const el = $('#power'), p = S.prices;
+  const head = `<div class="card-head"><h2>Elpris</h2><span class="src">Tibber${useTibber() ? '' : ' · exempeldata'}</span></div>`;
+  if (S.err.tibber) {
+    const msg = { auth: 'Tibber godkände inte din token. Kontrollera den under Inställningar.', nohome: 'Hittade inget hem med aktivt elavtal på ditt Tibber-konto.', net: 'Kunde inte nå Tibber just nu. Försöker igen om en stund.' }[S.err.tibber];
+    if (!p) { el.innerHTML = head + `<p class="err">${msg}</p>`; return; }
+  }
+  if (!p) { el.innerHTML = head + '<p class="empty">Hämtar elpriser…</p>'; return; }
+  const ore = (x) => Math.round(x.total * 100);
+  const today = p.today || [], tom = p.tomorrow || [];
+  const isToday = S.day === 'today';
+  const arr = isToday ? today : tom;
+  const avgT = today.length ? Math.round(today.reduce((a, x) => a + ore(x), 0) / today.length) : null;
+  const nowOre = p.current ? ore(p.current) : null;
+  let cmp = '';
+  if (nowOre != null && avgT != null) cmp = nowOre <= avgT
+    ? `<div class="sub" style="color:var(--cheap);margin-top:6px">Billigare än dagens snitt (${avgT} öre)</div>`
+    : `<div class="sub" style="color:var(--dear);margin-top:6px">Dyrare än dagens snitt (${avgT} öre)</div>`;
+  let chart;
+  if (!arr.length) {
+    chart = `<p class="empty" style="height:140px;display:flex;align-items:center">Morgondagens priser brukar komma runt kl 13.</p>`;
+  } else {
+    const vals = arr.map(ore), avg = vals.reduce((a, b) => a + b, 0) / vals.length, max = Math.max(...vals, 1);
+    const now = Date.now();
+    const curIdx = isToday ? arr.findIndex((x, i) => new Date(x.startsAt).getTime() <= now && (i === arr.length - 1 || new Date(arr[i + 1].startsAt).getTime() > now)) : -1;
+    const bars = vals.map((v, i) => {
+      const col = v < avg * 0.85 ? 'var(--cheap)' : v > avg * 1.2 ? 'var(--dear)' : 'var(--mid)';
+      return `<i class="${i === curIdx ? 'now' : ''}" style="height:${Math.max(4, Math.round(v / max * 100))}%;background:${col}"></i>`;
+    }).join('');
+    const minV = Math.min(...vals), maxV = Math.max(...vals);
+    const at = (v) => hhmm(new Date(arr[vals.indexOf(v)].startsAt));
+    const lbl = isToday ? 'idag' : 'imorgon';
+    chart = `<div><div class="bars" role="img" aria-label="Elpris per timme ${lbl}">${bars}</div>
+      <div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div></div>
+      <div class="duo"><div><div class="k">Billigast ${lbl}</div><div class="v" style="color:var(--cheap)">${minV} öre · ${at(minV)}</div></div>
+      <div><div class="k">Dyrast ${lbl}</div><div class="v" style="color:var(--dear)">${maxV} öre · ${at(maxV)}</div></div></div>`;
+  }
+  const c = S.consumption;
+  el.innerHTML = head + `
+    <div><div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span class="big">${nowOre != null ? nowOre : '–'}</span><span class="sub" style="font-size:16px">öre/kWh just nu</span></div>${cmp}</div>
+    <div class="tabs" role="group" aria-label="Välj dag">
+      <button type="button" data-act="day" data-day="today" aria-pressed="${isToday}">Idag</button>
+      <button type="button" data-act="day" data-day="tomorrow" aria-pressed="${!isToday}">Imorgon</button>
+    </div>
+    ${chart}
+    ${S.err.tibber ? '<p class="err">Visar senast hämtade priser – Tibber svarar inte just nu.</p>' : ''}
+    <div class="foot"><span style="color:var(--muted)">Förbrukat idag</span><span>${c ? num(c.kwh) + ' kWh · ca ' + num(Math.round(c.cost), 0) + ' kr' : 'Ingen data än'}</span></div>`;
+}
+
+// ---------- rendering: styrning ----------
+function zoneList() {
+  const byZone = {};
+  Object.values(S.devices).forEach((d) => { if (!d.zone || !S.zones[d.zone]) return; (byZone[d.zone] = byZone[d.zone] || []).push(d); });
+  const order = list(cfg.roomOrder).map((x) => x.toLowerCase());
+  const rank = (z) => { const i = order.indexOf(z.name.toLowerCase()); return i < 0 ? 999 : i; };
+  return Object.keys(byZone).map((id) => ({ zone: S.zones[id], devs: byZone[id].sort((a, b) => a.name.localeCompare(b.name, 'sv')) }))
+    .sort((a, b) => rank(a.zone) - rank(b.zone) || a.zone.name.localeCompare(b.zone.name, 'sv'));
+}
+function favDevices() {
+  const names = list(cfg.favorites).map((x) => x.toLowerCase());
+  const all = Object.values(S.devices);
+  if (names.length) return names.map((n) => all.find((d) => d.name.toLowerCase() === n)).filter(Boolean);
+  const auto = [all.find((d) => /fasad/i.test(d.name) && cap(d, 'onoff')), all.find(isSpeaker)].filter(Boolean);
+  return auto.length ? auto : all.filter(isLight).slice(0, 2);
+}
+function devState(d) {
+  if (d.available === false) return 'Inte tillgänglig';
+  if (isSpeaker(d)) {
+    const v = val(d, 'volume_set');
+    return (val(d, 'speaker_playing') ? 'Spelar' : 'Pausad') + (v != null ? ' · volym ' + Math.round(v * 100) : '');
+  }
+  if (cap(d, 'locked')) return val(d, 'locked') ? 'Låst' : 'Olåst';
+  if (cap(d, 'target_temperature')) {
+    const m = val(d, 'measure_temperature'), t = val(d, 'target_temperature');
+    return (m != null ? num(m) + '° nu · ' : '') + 'mål ' + num(t) + '°';
+  }
+  if (cap(d, 'onoff')) {
+    if (!isOn(d)) return 'Av';
+    const dim = val(d, 'dim');
+    return dim != null ? 'På · ' + Math.round(dim * 100) + ' %' : 'På';
+  }
+  if (cap(d, 'measure_temperature')) return num(val(d, 'measure_temperature')) + '°';
+  return '';
+}
+function renderControl() {
+  const demo = !useHomey();
+  // stämningar
+  $('#moods').innerHTML = list(cfg.moods).slice(0, 4).map((n) => {
+    const f = findFlow(n);
+    return `<button type="button" class="${S.lastMood === n ? 'active' : ''}" data-act="mood" data-name="${esc(n)}" ${f ? '' : 'disabled title="Inget Flow med det namnet"'}>${esc(n)}</button>`;
+  }).join('');
+  const missing = list(cfg.moods).slice(0, 4).filter((n) => !findFlow(n));
+  $('#moodnote').textContent = S.moodNote || (useHomey() && S.flows.length && missing.length ? 'Skapa ett Flow som heter ' + missing.map((m) => '”' + m + '”').join(', ') + ' i Homey.' : '');
+  // favoriter
+  $('#favs').innerHTML = favDevices().map((d) => {
+    if (isSpeaker(d)) {
+      const pl = val(d, 'speaker_playing');
+      return `<button type="button" class="fav" data-act="play" data-id="${esc(d.id)}">${pl ? ICON.pause : ICON.play}<span><b>${esc(d.name)}</b><small>${pl ? 'Spelar' : 'Pausad'}</small></span></button>`;
+    }
+    const on = isOn(d);
+    return `<button type="button" class="fav ${on ? 'on' : ''}" data-act="toggle" data-id="${esc(d.id)}">${ICON.bulb(on ? '#F5B544' : '#9AA3AE')}<span><b>${esc(d.name)}</b><small>${on ? 'På' : 'Av'}</small></span></button>`;
+  }).join('');
+  // rum
+  const el = $('#rooms');
+  if (S.err.homey && !Object.keys(S.devices).length) {
+    el.innerHTML = `<div class="panel"><p class="err">${S.err.homey === 'auth' ? 'Homey godkände inte API-nyckeln. Kontrollera nyckeln och att den har rätt behörigheter.' : 'Kunde inte nå Homey. Är du på hemma-wifi? Kontrollera IP-adressen under Inställningar, och se felsökningen i README om det fortfarande inte fungerar.'}</p></div>`;
+    return;
+  }
+  const rooms = zoneList();
+  const open = S.room && rooms.find((r) => r.zone.id === S.room);
+  if (!open) {
+    S.room = null;
+    if (!rooms.length) { el.innerHTML = `<div class="panel"><p class="empty">${demo ? '' : 'Hämtar enheter från Homey…'}</p></div>`; return; }
+    el.innerHTML = `<div class="rooms grow">${rooms.map((r) => {
+      const lights = r.devs.filter(isLight), n = lights.filter(isOn).length;
+      const status = lights.length ? (n === 0 ? 'Släckt' : n === lights.length ? (lights.length === 1 ? 'Tänd' : 'Allt på') : n + ' av ' + lights.length + ' på') : r.devs.length + (r.devs.length === 1 ? ' enhet' : ' enheter');
+      return `<div class="room ${n ? 'on' : ''}">
+        <button type="button" class="open" data-act="room" data-zone="${esc(r.zone.id)}"><b>${esc(r.zone.name)}</b><small>${status}</small></button>
+        ${lights.length ? `<button type="button" class="ibtn ${n ? 'lit' : ''}" data-act="roomtoggle" data-zone="${esc(r.zone.id)}" aria-label="${n ? 'Släck' : 'Tänd'} ${esc(r.zone.name)}">${ICON.bulb('#9AA3AE')}</button>` : ''}
+      </div>`;
+    }).join('')}</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="panel grow" style="overflow:auto">
+    <div class="phead">
+      <button type="button" class="obtn" data-act="roomclose" aria-label="Tillbaka till alla rum">${ICON.back}</button>
+      <div class="t">${esc(open.zone.name)}</div>
+      ${open.devs.some(isLight) ? `<button type="button" class="tbtn" data-act="roomoff" data-zone="${esc(open.zone.id)}">Släck rummet</button>` : ''}
+    </div>
+    ${open.devs.map(devRow).join('')}
+  </div>`;
+}
+function devRow(d) {
+  const id = esc(d.id), name = esc(d.name), st = esc(devState(d)), off = d.available === false ? 'disabled' : '';
+  if (isSpeaker(d)) {
+    const pl = val(d, 'speaker_playing');
+    return `<div class="dev"><button type="button" class="ibtn" data-act="play" data-id="${id}" aria-label="${pl ? 'Pausa' : 'Spela'} ${name}" ${off}>${pl ? ICON.pause : ICON.play}</button>
+      <div class="meta"><b>${name}</b><small>${st}</small></div>
+      ${cap(d, 'volume_set') ? `<button type="button" class="obtn" data-act="vol" data-id="${id}" data-d="-1" aria-label="Sänk volym" ${off}>−</button><button type="button" class="obtn" data-act="vol" data-id="${id}" data-d="1" aria-label="Höj volym" ${off}>+</button>` : ''}</div>`;
+  }
+  if (cap(d, 'locked')) {
+    const locked = val(d, 'locked');
+    return `<div class="dev"><div class="ibtn">${ICON.lock}</div><div class="meta"><b>${name}</b><small>${st}</small></div>
+      ${!locked && cap(d, 'locked').setable !== false ? `<button type="button" class="tbtn" data-act="lock" data-id="${id}" ${off}>Lås</button>` : ''}</div>`;
+  }
+  if (cap(d, 'target_temperature')) {
+    return `<div class="dev"><div class="ibtn">${ICON.dot}</div><div class="meta"><b>${name}</b><small>${st}</small></div>
+      <button type="button" class="obtn" data-act="temp" data-id="${id}" data-d="-1" aria-label="Sänk temperatur" ${off}>−</button><button type="button" class="obtn" data-act="temp" data-id="${id}" data-d="1" aria-label="Höj temperatur" ${off}>+</button></div>`;
+  }
+  if (cap(d, 'onoff')) {
+    const on = isOn(d);
+    return `<div class="dev ${on ? 'on' : ''}"><button type="button" class="ibtn ${on ? 'lit' : ''}" data-act="toggle" data-id="${id}" aria-label="${on ? 'Släck' : 'Tänd'} ${name}" ${off}>${ICON.bulb('#9AA3AE')}</button>
+      <div class="meta"><b>${name}</b><small>${st}</small></div>
+      ${cap(d, 'dim') ? `<button type="button" class="obtn" data-act="dim" data-id="${id}" data-d="-1" aria-label="Dimma ner ${name}" ${off}>−</button><button type="button" class="obtn" data-act="dim" data-id="${id}" data-d="1" aria-label="Dimma upp ${name}" ${off}>+</button>` : ''}</div>`;
+  }
+  return `<div class="dev"><div class="ibtn">${ICON.dot}</div><div class="meta"><b>${name}</b><small>${st}</small></div></div>`;
+}
+
+// ---------- klick ----------
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-act]'); if (!b || b.disabled) return;
+  const act = b.dataset.act, d = b.dataset.id ? S.devices[b.dataset.id] : null, step = Number(b.dataset.d || 0);
+  const roomLights = (zid) => Object.values(S.devices).filter((x) => x.zone === zid && isLight(x));
+  switch (act) {
+    case 'toggle': if (d) setCap(d.id, 'onoff', !isOn(d)); break;
+    case 'dim': if (d) { const v = Math.min(1, Math.max(0.1, Math.round(((val(d, 'dim') || 0) + step * 0.1) * 10) / 10)); setCap(d.id, 'dim', v); if (!isOn(d)) setCap(d.id, 'onoff', true); } break;
+    case 'play': if (d) setCap(d.id, 'speaker_playing', !val(d, 'speaker_playing')); break;
+    case 'vol': if (d) setCap(d.id, 'volume_set', Math.min(1, Math.max(0, Math.round(((val(d, 'volume_set') || 0) + step * 0.04) * 100) / 100))); break;
+    case 'temp': if (d) setCap(d.id, 'target_temperature', Math.round(((val(d, 'target_temperature') || 20) + step * 0.5) * 2) / 2); break;
+    case 'lock': if (d) setCap(d.id, 'locked', true); break;
+    case 'room': S.room = b.dataset.zone; renderControl(); break;
+    case 'roomclose': S.room = null; renderControl(); break;
+    case 'roomtoggle': { const ls = roomLights(b.dataset.zone), anyOn = ls.some(isOn); ls.forEach((x) => setCap(x.id, 'onoff', !anyOn)); S.lastMood = null; S.moodNote = ''; break; }
+    case 'roomoff': roomLights(b.dataset.zone).forEach((x) => { if (isOn(x)) setCap(x.id, 'onoff', false); }); break;
+    case 'mood': startMood(b.dataset.name); break;
+    case 'day': S.day = b.dataset.day; renderPower(); break;
+    case 'alloff':
+      Object.values(S.devices).forEach((x) => { if (isLight(x) && isOn(x)) setCap(x.id, 'onoff', false); if (isSpeaker(x) && val(x, 'speaker_playing')) setCap(x.id, 'speaker_playing', false); });
+      S.lastMood = null; S.moodNote = ''; toast('Allt släckt'); break;
+    case 'settings': openSettings(); break;
+    case 'closecfg': $('#settings').close(); break;
+    case 'clearcfg': if (confirm('Rensa alla inställningar på den här enheten?')) { store.del('cfg'); location.reload(); } break;
+  }
+  if (['toggle', 'dim', 'roomoff'].includes(act)) { S.lastMood = null; S.moodNote = ''; }
+});
+
+// ---------- inställningar ----------
+function openSettings() {
+  const f = $('#sform');
+  Object.keys(DEFAULTS).forEach((k) => { if (f.elements[k]) f.elements[k].value = store.get('cfg', {})[k] || ''; });
+  $('#settings').showModal();
+}
+$('#sform').addEventListener('submit', () => {
+  const f = $('#sform'), next = {};
+  Object.keys(DEFAULTS).forEach((k) => { if (f.elements[k]) next[k] = f.elements[k].value.trim(); });
+  next.lat = next.lat.replace(',', '.'); next.lon = next.lon.replace(',', '.');
+  store.set('cfg', next);
+  location.reload();
+});
+
+// ---------- start ----------
+function updateMode() {
+  const demoParts = [];
+  if (!useHomey()) demoParts.push('enheter');
+  if (!useTibber()) demoParts.push('elpris');
+  const m = $('#mode');
+  if (demoParts.length) { m.hidden = false; m.textContent = 'Exempeldata: ' + demoParts.join(' och '); m.className = 'chip'; }
+  else if (S.err.homey) { m.hidden = false; m.textContent = 'Ingen kontakt med Homey'; m.className = 'chip warn'; }
+  else m.hidden = true;
+}
+let wakeLock = null;
+async function keepAwake() { try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); loadHomey(); } });
+
+function start() {
+  tickClock(); setInterval(tickClock, 5000);
+  if (!useHomey()) demoHomey();
+  if (!useTibber()) demoPrices();
+  renderWeather(); renderPower(); renderControl(); updateMode();
+  loadWeather(); setInterval(loadWeather, 30 * 60 * 1000);
+  if (useTibber()) { loadTibber(); setInterval(loadTibber, 15 * 60 * 1000); }
+  if (useHomey()) {
+    loadHomey().then(loadFlows);
+    setInterval(() => { if (document.visibilityState === 'visible') loadHomey().then(updateMode); }, 5000);
+    setInterval(loadFlows, 5 * 60 * 1000);
+  }
+  setInterval(() => { renderPower(); }, 60 * 1000); // flytta "nu"-markeringen
+  // Ladda om sidan varje natt kl 03 så att den håller sig pigg på väggen
+  setInterval(() => { const d = new Date(); if (d.getHours() === 3 && d.getMinutes() === 0) location.reload(); }, 60 * 1000);
+  keepAwake();
+}
+start();
+</script>
+</body>
+</html>
