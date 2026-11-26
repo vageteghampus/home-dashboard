@@ -815,9 +815,19 @@ async function runDiag() {
   if (!useHomey()) { out.innerHTML = '<p class="hint">Fyll i Homeys IP-adress och API-nyckel och spara först.</p>'; return; }
   out.innerHTML = '<p class="hint">Hämtar från Homey…</p>';
   const res = {};
-  for (const [k, path] of [['live', '/api/manager/energy/live'], ['reportsAvailable', '/api/manager/energy/reports/available']]) {
-    try { res[k] = await homey(path); } catch (e) { res[k] = 'FEL: ' + (e.message === 'auth' ? 'saknar behörighet (lägg till Insights-behörigheten på API-nyckeln)' : e.message); }
-  }
+  const raw = async (path) => {
+    try {
+      const r = await fetch(homeyBase() + path, { headers: { Authorization: 'Bearer ' + cfg.homeyKey } });
+      const txt = await r.text(); let body; try { body = JSON.parse(txt); } catch (e) { body = txt.slice(0, 300); }
+      return r.ok ? body : { status: r.status, svar: body };
+    } catch (e) { return 'FEL: ' + e.message; }
+  };
+  const me = await raw('/api/manager/sessions/session/me');
+  res.nyckelnsBehorigheter = me && me.scopes ? me.scopes : me;
+  res.insightsTest = await raw('/api/manager/insights/log');
+  if (res.insightsTest && !res.insightsTest.status && typeof res.insightsTest === 'object') res.insightsTest = 'OK (' + (Array.isArray(res.insightsTest) ? res.insightsTest.length : Object.keys(res.insightsTest).length) + ' loggar)';
+  res.live = await raw('/api/manager/energy/live');
+  res.reportsAvailable = await raw('/api/manager/energy/reports/available');
   const measuring = Object.values(S.devices).filter((d) => cap(d, 'measure_power') || cap(d, 'meter_power'))
     .map((d) => ({ name: d.name, class: d.class, measure_power: val(d, 'measure_power'), meter_power: val(d, 'meter_power') }));
   res.devicesWithEnergy = measuring;
