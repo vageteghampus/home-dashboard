@@ -72,9 +72,11 @@ Knappar utan ett matchande Flow är gråa, och sidan talar om vilka som saknas. 
 | Stämningar | Namnen på dina Flows, upp till fyra. |
 | Favoriter | Enhetsnamn som ska ligga som snabbknappar. Tomt = fasaden och Sonos väljs automatiskt. |
 | Rumsordning | T.ex. `Hall, Kök, Vardagsrum`. Rum som inte nämns hamnar sist i bokstavsordning. |
+| Apparater | För kortet "Bästa tid att köra", t.ex. `Tvättmaskin:2, Diskmaskin:2, Elbil:4`. Sidan letar upp de billigaste sammanhängande timmarna från nu och framåt, och tar med morgondagens priser när de finns. |
 
 ## Energi
 
+- **Bästa tid att köra** visar när det är billigast att köra tvätt, disk eller annat du lagt in under kugghjulet, med snittpris och hur mycket billigare det är än att köra nu.
 - **Elkortet** visar elpriset, effekten just nu (med Pulse) och förbrukningen idag jämfört med samma tid igår.
 - **Tryck på raden "Idag …"** längst ner på elkortet för att öppna energivyn: förbrukning per timme idag färgad efter om timmen var billig eller dyr, de senaste sju dagarna. Där syns också vilka enheter som drar mest just nu.
 - **Rumsrutorna** visar hur många watt rummet drar just nu.

@@ -61,6 +61,16 @@ main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .duo .v{font-size:17px;font-weight:500;margin-top:4px}
 .foot{border-top:1px solid var(--line);padding:12px 0 0;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:15px;margin-top:auto;width:100%;text-align:left;min-height:44px}
 .foot .chev{color:var(--muted);font-size:18px}
+.brow{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.brow:first-of-type{border-top:0;padding-top:0}
+.brow .bico{width:36px;height:36px;border-radius:10px;background:var(--inset);display:flex;align-items:center;justify-content:center;flex:none}
+.brow .bname{flex:1;min-width:0}
+.brow .bname b{font-size:15px;font-weight:500}
+.brow .bname span{font-size:13px;color:var(--muted);margin-left:6px;white-space:nowrap}
+.brow .bname small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.brow .bwhen{text-align:right;white-space:nowrap}
+.brow .bwhen b{display:block;font-size:16px;font-weight:600;color:var(--cheap);font-variant-numeric:tabular-nums}
+.brow .bwhen small{display:block;font-size:12px;color:var(--muted)}
 .live{display:flex;align-items:center;gap:14px;background:var(--inset);border-radius:14px;padding:12px 14px;min-height:64px}
 .live .kw{font-size:24px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
 .live .spark{flex:1;min-width:0;height:36px}
@@ -166,6 +176,7 @@ input:focus{outline:2px solid var(--amber);outline-offset:1px}
   <main>
     <div class="col col-weather">
       <section class="card" id="weather" aria-live="polite"></section>
+      <section class="card" id="best"></section>
       <section class="card grow" id="calendar">
         <h2>Kalender</h2>
         <p class="empty">Kalendern kopplas in i nästa version.</p>
@@ -210,6 +221,9 @@ input:focus{outline:2px solid var(--amber);outline-offset:1px}
     <label>Rumsordning (valfritt, kommaseparerade)
       <input name="roomOrder" placeholder="Hall, Kök, Vardagsrum, …">
     </label>
+    <label>Apparater för "Bästa tid att köra" (namn:timmar, kommaseparerade)
+      <input name="appliances" placeholder="Tvättmaskin:2, Diskmaskin:2">
+    </label>
     <div class="actions">
       <button type="button" class="tbtn" data-act="clearcfg">Rensa allt</button>
       <button type="button" class="tbtn" data-act="closecfg">Avbryt</button>
@@ -239,8 +253,10 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-const DEFAULTS = { homey: '', homeyKey: '', tibber: '', lat: '62.3908', lon: '17.3069', place: 'Sundsvall', moods: 'Morgon, Kväll, Hemma, Borta', favorites: '', roomOrder: '' };
-let cfg = Object.assign({}, DEFAULTS, store.get('cfg', {}));
+const DEFAULTS = { homey: '', homeyKey: '', tibber: '', lat: '62.3908', lon: '17.3069', place: 'Sundsvall', moods: 'Morgon, Kväll, Hemma, Borta', favorites: '', roomOrder: '', appliances: 'Tvättmaskin:2, Diskmaskin:2' };
+// Tomma fält i inställningarna betyder "använd standardvärdet"
+let cfg = Object.assign({}, DEFAULTS);
+Object.entries(store.get('cfg', {})).forEach(([k, v]) => { if (v !== '' && v != null) cfg[k] = v; });
 const useHomey = () => !!(cfg.homey && cfg.homeyKey);
 const useTibber = () => !!cfg.tibber;
 
@@ -540,7 +556,63 @@ function renderWeather() {
 }
 
 // ---------- rendering: el ----------
+// ---------- bästa tid att köra ----------
+function applianceList() {
+  return list(cfg.appliances).map((s) => {
+    const m = s.match(/^(.+?)\s*[:=]\s*([\d.,]+)\s*h?$/i);
+    if (!m) return null;
+    const h = Number(m[2].replace(',', '.'));
+    return h > 0 && h <= 24 ? { name: m[1].trim(), h } : null;
+  }).filter(Boolean);
+}
+function bestWindows() {
+  const p = S.prices; if (!p) return null;
+  const slots = [...(p.today || []), ...(p.tomorrow || [])].map((x) => ({ t: new Date(x.startsAt).getTime(), v: x.total * 100 })).sort((a, b) => a.t - b.t);
+  if (slots.length < 2) return null;
+  const slotMs = slots[1].t - slots[0].t, now = Date.now();
+  const first = slots.findIndex((x) => x.t + slotMs > now); // pågående timme räknas som "nu"
+  if (first < 0) return { items: [], hasTomorrow: !!(p.tomorrow && p.tomorrow.length) };
+  const avgFrom = (i, n) => { let s = 0; for (let k = i; k < i + n; k++) s += slots[k].v; return s / n; };
+  const items = applianceList().map((a) => {
+    const n = Math.max(1, Math.round(a.h * 3600000 / slotMs));
+    let best = null;
+    for (let i = first; i + n <= slots.length; i++) {
+      if (slots[i + n - 1].t - slots[i].t !== (n - 1) * slotMs) continue; // hoppa över glapp
+      const avg = avgFrom(i, n);
+      if (!best || avg < best.avg - 1e-9) best = { i, avg };
+    }
+    if (!best) return Object.assign({}, a, { none: true });
+    const nowAvg = first + n <= slots.length ? avgFrom(first, n) : null;
+    return Object.assign({}, a, { start: new Date(slots[best.i].t), end: new Date(slots[best.i].t + n * slotMs), avg: best.avg, isNow: best.i === first, save: nowAvg != null ? nowAvg - best.avg : 0 });
+  });
+  return { items, hasTomorrow: !!(p.tomorrow && p.tomorrow.length) };
+}
+function applianceIcon(name) {
+  const s = 'width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+  if (/tvätt|tork/i.test(name)) return `<svg ${s}><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="13" r="4.5"/><path d="M7 6.5h2"/></svg>`;
+  if (/disk/i.test(name)) return `<svg ${s}><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 8h16M8 5.5h2M8 13h8M8 16.5h8"/></svg>`;
+  if (/bil|ladd|elbil/i.test(name)) return `<svg ${s}><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>`;
+  return `<svg ${s}><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>`;
+}
+function renderBest() {
+  const el = $('#best'); if (!el) return;
+  const r = bestWindows();
+  const head = `<div class="card-head"><h2>Bästa tid att köra</h2></div>`;
+  if (!r) { el.innerHTML = head + '<p class="empty">Väntar på elpriser…</p>'; return; }
+  if (!r.items.length) { el.innerHTML = head + '<p class="empty">Lägg till apparater under kugghjulet, t.ex. "Tvättmaskin:2".</p>'; return; }
+  const today = new Date().toDateString();
+  const when = (x) => (x.isNow ? 'Nu' : hhmm(x.start)) + '–' + hhmm(x.end);
+  const day = (x) => x.isNow ? 'starta' : x.start.toDateString() !== today ? 'imorgon' : 'idag';
+  el.innerHTML = head + `<div>${r.items.map((x) => `<div class="brow">
+      <div class="bico">${applianceIcon(x.name)}</div>
+      <div class="bname"><b>${esc(x.name)}</b><span>${num(x.h)} h</span>${!x.none && x.save >= 2 ? `<small>${num(Math.round(x.save), 0)} öre/kWh billigare än nu</small>` : ''}</div>
+      <div class="bwhen">${x.none ? '<small>Inte nog med timmar kvar</small>' : `<small>${day(x)}</small><b>${when(x)}</b><small>snitt ${num(Math.round(x.avg), 0)} öre/kWh</small>`}</div>
+    </div>`).join('')}</div>
+    ${r.hasTomorrow ? '' : '<p class="hint">Räknat på resten av dagen. Morgondagens priser brukar komma runt kl 13.</p>'}`;
+}
+
 function renderPower() {
+  renderBest();
   const el = $('#power'), p = S.prices;
   const head = `<div class="card-head"><h2>Elpris</h2>${useTibber() ? stamp('tibber', 15, 'Tibber') : '<span class="src">Tibber · exempeldata</span>'}</div>`;
   if (S.err.tibber) {
