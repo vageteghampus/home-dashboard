@@ -71,7 +71,7 @@ Knappar utan ett matchande Flow är gråa, och sidan talar om vilka som saknas. 
 | Latitud / Longitud / Ortnamn | Var vädret hämtas för. |
 | Stämningar | Namnen på dina Flows, upp till fyra. |
 | Favoriter | Enhetsnamn som ska ligga som snabbknappar. Tomt = fasaden och Sonos väljs automatiskt. |
-| Rumsordning | T.ex. `Hall, Kök, Vardagsrum`. Rum som inte nämns hamnar sist i bokstavsordning. |
+| Rumsordning | T.ex. `Hall, Kök, Vardagsrum`. Rum som inte nämns hamnar sist i bokstavsordning. Ändrar bara ordningen, skapar inga rum. |
 | Apparater | En apparat per rad för "Bästa tid att köra": tid i timmar, förbrukning per körning och en tidsregel. Exempel: `Diskmaskin: 2 h, 1 kWh, klar 07:00` (ska vara färdig senast 07), `Tvättmaskin: 2 h, 1 kWh, 07–22` (får bara gå mellan 07 och 22), `Elbil: 4 h, 25 kWh, klar 06:30`. |
 
 ## Energi
@@ -87,7 +87,7 @@ Knappar utan ett matchande Flow är gråa, och sidan talar om vilka som saknas. 
 
 Har du en robotdammsugare i Homey (t.ex. Roborock via appen **Roborock Cloud**) visas ett eget kort med status, batteri, senaste städningen och knapparna **Städa allt**, **Pausa**, **Åk hem** och **Hitta** (roboten piper). Har den fastnat eller fått problem syns det i rött.
 
-**Dammsug ett rum:** öppna ett rum på plattan och tryck **Dammsug**. Knappen visas när ett rum i robotens karta heter likadant som zonen i Homey, så döp rummen lika i Roborock-appen (t.ex. "Kök" på båda ställena). Står det "Hämta rum från roboten" på dammsugarkortet, tryck där först så att Homey läser in robotens rum.
+**Dammsug ett rum:** öppna ett rum på plattan och tryck **Dammsug**. Knappen visas när ett rum i robotens karta heter likadant som zonen i Homey, så döp rummen lika i Roborock-appen (t.ex. "Kök" på båda ställena). Står det "Hämta rum från roboten" på dammsugarkortet, tryck där först så att Homey läser in robotens rum. Rum som roboten känner till visas på plattan även om de saknar lampor, med en dammsugarknapp direkt på rutan.
 
 ## Felsökning
 

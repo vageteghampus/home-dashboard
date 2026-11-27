@@ -275,6 +275,7 @@ const ICON = {
   pause: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`,
   back: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>`,
   lock: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`,
+  vac: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M7 8.5h3"/></svg>`,
   dot: `<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="6"/></svg>`,
   sun: (s = 26) => `<svg aria-hidden="true" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#F5B544" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg>`,
   part: (s = 26) => `<svg aria-hidden="true" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="3" stroke="#F5B544"/><path d="M8 19a4 4 0 0 1 .5-8A5 5 0 0 1 18 11.5 3.5 3.5 0 0 1 20 18.9H8" stroke="#9AA3AE"/></svg>`,
@@ -331,6 +332,8 @@ function demoHomey() {
     cancel_and_dock: { value: null, setable: true }, locate: { value: null, setable: true }, alarm_stuck: { value: false }, alarm_problem: { value: false }, alarm_battery: { value: false },
     clean_room_pick: { value: null, setable: true, values: ['Hall', 'Kök', 'Vardagsrum', 'Sovrum 1', 'Sovrum 2'].map((n, i) => ({ id: String(16 + i), title: n })) } } };
   zones.home = { id: 'home', name: 'Hem' };
+  zones.tvatt = { id: 'tvatt', name: 'Tvättstuga' };
+  devices.vac.capabilitiesObj.clean_room_pick.values.push({ id: '21', title: 'Tvättstuga' });
   devices.mower = { id: 'mower', name: 'Gardena-klippare', zone: 'z7', class: 'other', available: true, capabilitiesObj: {} };
   S.zones = zones; S.devices = devices;
   S.flows = list(cfg.moods).map((n, i) => ({ id: 'f' + i, name: n, kind: 'demo' }));
@@ -821,6 +824,8 @@ function zoneList() {
   Object.values(S.devices).forEach((d) => { if (!d.zone || !S.zones[d.zone] || isVacuum(d)) return; (byZone[d.zone] = byZone[d.zone] || []).push(d); });
   const order = list(cfg.roomOrder).map((x) => x.toLowerCase());
   const rank = (z) => { const i = order.indexOf(z.name.toLowerCase()); return i < 0 ? 999 : i; };
+  // Rum som robotdammsugaren känner till visas också, även om de saknar andra enheter
+  Object.values(S.zones).forEach((z) => { if (!byZone[z.id] && vacRoomFor(z.name)) byZone[z.id] = []; });
   return Object.keys(byZone).map((id) => ({ zone: S.zones[id], devs: byZone[id].sort((a, b) => a.name.localeCompare(b.name, 'sv')) }))
     .sort((a, b) => rank(a.zone) - rank(b.zone) || a.zone.name.localeCompare(b.zone.name, 'sv'));
 }
@@ -886,12 +891,13 @@ function renderControl() {
     if (!rooms.length) { el.innerHTML = `<div class="panel"><p class="empty">${demo ? '' : 'Hämtar enheter från Homey…'}</p></div>`; return; }
     el.innerHTML = `<div class="rooms grow">${rooms.map((r) => {
       const lights = r.devs.filter(isLight), n = lights.filter(isOn).length;
-      const status = lights.length ? (n === 0 ? 'Släckt' : n === lights.length ? (lights.length === 1 ? 'Tänd' : 'Allt på') : n + ' av ' + lights.length + ' på') : r.devs.length + (r.devs.length === 1 ? ' enhet' : ' enheter');
+      const status = lights.length ? (n === 0 ? 'Släckt' : n === lights.length ? (lights.length === 1 ? 'Tänd' : 'Allt på') : n + ' av ' + lights.length + ' på') : r.devs.length ? r.devs.length + (r.devs.length === 1 ? ' enhet' : ' enheter') : 'Kan dammsugas';
+      const vr = lights.length ? null : vacRoomFor(r.zone.name);
       const w = r.devs.reduce((a, d) => a + (powerOf(d) || 0), 0);
       const st = status + (w >= 1 ? ' · ' + fmtW(w) : '');
       return `<div class="room ${n ? 'on' : ''}">
         <button type="button" class="open" data-act="room" data-zone="${esc(r.zone.id)}"><b>${esc(r.zone.name)}</b><small>${st}</small></button>
-        ${lights.length ? `<button type="button" class="ibtn ${n ? 'lit' : ''}" data-act="roomtoggle" data-zone="${esc(r.zone.id)}" aria-label="${n ? 'Släck' : 'Tänd'} ${esc(r.zone.name)}">${ICON.bulb('#9AA3AE')}</button>` : ''}
+        ${lights.length ? `<button type="button" class="ibtn ${n ? 'lit' : ''}" data-act="roomtoggle" data-zone="${esc(r.zone.id)}" aria-label="${n ? 'Släck' : 'Tänd'} ${esc(r.zone.name)}">${ICON.bulb('#9AA3AE')}</button>` : vr ? `<button type="button" class="ibtn" data-act="vacroom" data-id="${esc(vr.v.id)}" data-room="${esc(vr.id)}" data-zone="${esc(r.zone.id)}" aria-label="Dammsug ${esc(r.zone.name)}">${ICON.vac}</button>` : ''}
       </div>`;
     }).join('')}</div>`;
     return;
@@ -903,7 +909,7 @@ function renderControl() {
       ${(() => { const vr = vacRoomFor(open.zone.name); return vr ? `<button type="button" class="tbtn" data-act="vacroom" data-id="${esc(vr.v.id)}" data-room="${esc(vr.id)}">Dammsug</button>` : ''; })()}
       ${open.devs.some(isLight) ? `<button type="button" class="tbtn" data-act="roomoff" data-zone="${esc(open.zone.id)}">Släck rummet</button>` : ''}
     </div>
-    ${open.devs.map(devRow).join('')}
+    ${open.devs.length ? open.devs.map(devRow).join('') : '<p class="empty">Inga andra enheter i rummet än.</p>'}
   </div>`;
 }
 function devRow(d) {
@@ -959,7 +965,7 @@ document.addEventListener('click', (ev) => {
     case 'vacdock': if (d) { setCap(d.id, 'cancel_and_dock', true); toast(d.name + ' åker hem'); } break;
     case 'vaclocate': if (d) { setCap(d.id, 'locate', true); toast(d.name + ' piper så du hittar den'); } break;
     case 'vacrooms': if (d) { setCap(d.id, 'button.refresh_rooms', true); toast('Hämtar rum från roboten…'); setTimeout(loadHomey, 5000); } break;
-    case 'vacroom': if (d) { setCap(d.id, 'clean_room_pick', b.dataset.room); toast(d.name + ' dammsuger ' + (S.zones[S.room] || {}).name); } break;
+    case 'vacroom': if (d) { setCap(d.id, 'clean_room_pick', b.dataset.room); toast(d.name + ' dammsuger ' + (S.zones[b.dataset.zone || S.room] || {}).name); } break;
     case 'energy': renderEnergy(); $('#energy').showModal(); break;
     case 'energyclose': $('#energy').close(); break;
     case 'closecfg': $('#settings').close(); break;
