@@ -71,6 +71,12 @@ main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .brow .bwhen{text-align:right;white-space:nowrap}
 .brow .bwhen b{display:block;font-size:16px;font-weight:600;color:var(--cheap);font-variant-numeric:tabular-nums}
 .brow .bwhen small{display:block;font-size:12px;color:var(--muted)}
+.vstat{display:flex;align-items:center;gap:12px}
+.vstat .dot{width:10px;height:10px;border-radius:50%;flex:none}
+.vstat b{font-size:17px;font-weight:600}
+.vbtns{display:flex;gap:8px;flex-wrap:wrap}
+.vbtns .tbtn{flex:1;min-width:110px}
+.vwarn{background:#3a1f16;border:1px solid #6b3522;color:#F7B49A;border-radius:12px;padding:10px 12px;font-size:14px}
 .live{display:flex;align-items:center;gap:14px;background:var(--inset);border-radius:14px;padding:12px 14px;min-height:64px}
 .live .kw{font-size:24px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
 .live .spark{flex:1;min-width:0;height:36px}
@@ -177,6 +183,7 @@ input:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:1px}
     <div class="col col-weather">
       <section class="card" id="weather" aria-live="polite"></section>
       <section class="card" id="best"></section>
+      <section class="card" id="vacuum" hidden></section>
       <section class="card grow" id="calendar">
         <h2>Kalender</h2>
         <p class="empty">Kalendern kopplas in i nästa version.</p>
@@ -225,9 +232,7 @@ input:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:1px}
       <textarea name="appliances" rows="4" placeholder="Diskmaskin: 2 h, 1 kWh, klar 07:00&#10;Tvättmaskin: 2 h, 1 kWh, 07–22&#10;Elbil: 4 h, 25 kWh, klar 06:30"></textarea>
       <span class="hint">Tid i timmar, förbrukning per körning, och antingen "klar HH:MM" (ska vara färdig senast) eller "HH–HH" (får bara gå mellan de tiderna).</span>
     </label>
-    <div id="diagout" hidden></div>
     <div class="actions">
-      <button type="button" class="tbtn" data-act="diagvac">Diagnostik: dammsugare</button>
       <button type="button" class="tbtn" data-act="clearcfg">Rensa allt</button>
       <button type="button" class="tbtn" data-act="closecfg">Avbryt</button>
       <button type="submit" class="tbtn primary">Spara</button>
@@ -320,6 +325,12 @@ function demoHomey() {
   });
   devices.sonos = { id: 'sonos', name: 'Sonos Beam', zone: 'z2', class: 'speaker', available: true,
     capabilitiesObj: { speaker_playing: { value: false, setable: true }, volume_set: { value: 0.22, setable: true } } };
+  devices.vac = { id: 'vac', name: 'Conny', zone: 'home', class: 'vacuumcleaner', available: true, capabilitiesObj: {
+    is_cleaning: { value: false }, measure_battery: { value: 100 }, battery_charging_state: { value: 'charging' }, dock: { value: true, setable: true },
+    clean_area: { value: 36.82 }, clean_time: { value: 0.73 }, clean_full: { value: false, setable: true }, pause_clean: { value: false, setable: true },
+    cancel_and_dock: { value: null, setable: true }, locate: { value: null, setable: true }, alarm_stuck: { value: false }, alarm_problem: { value: false }, alarm_battery: { value: false },
+    clean_room_pick: { value: null, setable: true, values: ['Hall', 'Kök', 'Vardagsrum', 'Sovrum 1', 'Sovrum 2'].map((n, i) => ({ id: String(16 + i), title: n })) } } };
+  zones.home = { id: 'home', name: 'Hem' };
   devices.mower = { id: 'mower', name: 'Gardena-klippare', zone: 'z7', class: 'other', available: true, capabilitiesObj: {} };
   S.zones = zones; S.devices = devices;
   S.flows = list(cfg.moods).map((n, i) => ({ id: 'f' + i, name: n, kind: 'demo' }));
@@ -388,7 +399,16 @@ const fmtW = (w) => (w < 10 ? num(w, 1) : num(Math.round(w), 0)) + ' W';
 async function setCap(id, c, value) {
   const d = S.devices[id]; if (!d || !cap(d, c)) return;
   const prev = d.capabilitiesObj[c].value;
-  d.capabilitiesObj[c].value = value; renderControl();
+  d.capabilitiesObj[c].value = value;
+  if (isVacuum(d)) {
+    if (!useHomey()) { // exempeldata: låtsas att roboten gör det man bad om
+      const o = d.capabilitiesObj, start = c === 'clean_full' || c === 'clean_room_pick';
+      if (start) Object.assign(o.is_cleaning, { value: true }), Object.assign(o.dock, { value: false }), Object.assign(o.pause_clean, { value: false }), Object.assign(o.battery_charging_state, { value: 'discharging' });
+      if (c === 'pause_clean') o.is_cleaning.value = false;
+      if (c === 'cancel_and_dock') Object.assign(o.is_cleaning, { value: false }), Object.assign(o.pause_clean, { value: false }), Object.assign(o.dock, { value: true }), Object.assign(o.battery_charging_state, { value: 'charging' });
+    } else setTimeout(loadHomey, 2500); // hämta robotens nya läge strax efter kommandot
+  }
+  renderControl();
   if (!useHomey()) return;
   try {
     await homey(`/api/manager/devices/device/${encodeURIComponent(id)}/capability/${encodeURIComponent(c)}`, { method: 'PUT', body: JSON.stringify({ value }) });
@@ -749,9 +769,56 @@ function renderEnergy() {
 }
 
 // ---------- rendering: styrning ----------
+// ---------- dammsugare (Roborock Cloud m.fl.) ----------
+const isVacuum = (d) => d.class === 'vacuumcleaner';
+const vacuums = () => Object.values(S.devices).filter(isVacuum);
+// Rumsnamn från roboten matchas mot Homeys zonnamn, så "Kök" i Roborock-appen hör ihop med zonen "Kök"
+function vacRoomFor(zoneName) {
+  for (const v of vacuums()) {
+    const pick = cap(v, 'clean_room_pick');
+    if (!pick || pick.setable === false || !Array.isArray(pick.values)) continue;
+    const hit = pick.values.find((x) => String(x.title || x.id).trim().toLowerCase() === zoneName.trim().toLowerCase());
+    if (hit) return { v, id: hit.id };
+  }
+  return null;
+}
+function renderVacuum() {
+  const el = $('#vacuum'); if (!el) return;
+  const v = vacuums()[0];
+  if (!v) { el.hidden = true; return; }
+  el.hidden = false;
+  const cleaning = val(v, 'is_cleaning') === true, paused = val(v, 'pause_clean') === true && !cleaning;
+  const docked = val(v, 'dock') === true, bat = val(v, 'measure_battery'), chg = val(v, 'battery_charging_state');
+  const stuck = val(v, 'alarm_stuck') === true, problem = val(v, 'alarm_problem') === true, lowBat = val(v, 'alarm_battery') === true;
+  let state, color;
+  if (v.available === false) { state = 'Inte tillgänglig'; color = 'var(--mid)'; }
+  else if (stuck) { state = 'Har fastnat'; color = 'var(--dear)'; }
+  else if (problem) { state = 'Problem'; color = 'var(--dear)'; }
+  else if (cleaning) { state = 'Städar'; color = 'var(--cheap)'; }
+  else if (paused) { state = 'Pausad'; color = 'var(--amber)'; }
+  else if (docked) { state = chg === 'charging' && bat < 100 ? 'Dockad · laddar' : 'Dockad'; color = 'var(--mid)'; }
+  else { state = 'Står still'; color = 'var(--mid)'; }
+  const area = val(v, 'clean_area'), time = val(v, 'clean_time');
+  const last = typeof area === 'number' && area > 0 ? `Senaste städning: ${num(Math.round(area), 0)} m²${typeof time === 'number' && time > 0 ? ' på ' + num(Math.round(time * 60), 0) + ' min' : ''}` : '';
+  const id = esc(v.id), has = (c) => cap(v, c) && cap(v, c).setable !== false;
+  const btn = (act, label, c) => has(c) ? `<button type="button" class="tbtn" data-act="${act}" data-id="${id}">${label}</button>` : '';
+  let buttons;
+  if (cleaning) buttons = btn('vacpause', 'Pausa', 'pause_clean') + btn('vacdock', 'Åk hem', 'cancel_and_dock');
+  else if (paused) buttons = btn('vacfull', 'Fortsätt', 'clean_full') + btn('vacdock', 'Åk hem', 'cancel_and_dock');
+  else buttons = btn('vacfull', 'Städa allt', 'clean_full') + (docked ? '' : btn('vacdock', 'Åk hem', 'cancel_and_dock'));
+  buttons += btn('vaclocate', 'Hitta', 'locate');
+  const pick = cap(v, 'clean_room_pick');
+  const roomsMissing = pick && Array.isArray(pick.values) && !pick.values.length && has('button.refresh_rooms');
+  el.innerHTML = `<div class="card-head"><h2>Dammsugare · ${esc(v.name)}</h2>${typeof bat === 'number' ? `<span class="src">${bat} %</span>` : ''}</div>
+    <div class="vstat"><span class="dot" style="background:${color}"></span><div><b>${state}</b>${last ? `<div class="sub" style="font-size:13px">${last}</div>` : ''}</div></div>
+    ${stuck ? '<div class="vwarn">Roboten har fastnat. Hjälp den loss, och tryck sedan Fortsätt eller Åk hem.</div>' : problem ? '<div class="vwarn">Roboten rapporterar ett problem. Kolla Roborock-appen.</div>' : lowBat && !docked ? '<div class="vwarn">Låg batterinivå.</div>' : ''}
+    <div class="vbtns">${buttons}</div>
+    ${roomsMissing ? `<p class="hint">Rumsstädning: <button type="button" class="tbtn" data-act="vacrooms" data-id="${id}" style="height:36px;margin-left:6px">Hämta rum från roboten</button></p>` : ''}`;
+}
+
 function zoneList() {
   const byZone = {};
-  Object.values(S.devices).forEach((d) => { if (!d.zone || !S.zones[d.zone]) return; (byZone[d.zone] = byZone[d.zone] || []).push(d); });
+  Object.values(S.devices).forEach((d) => { if (!d.zone || !S.zones[d.zone] || isVacuum(d)) return; (byZone[d.zone] = byZone[d.zone] || []).push(d); });
   const order = list(cfg.roomOrder).map((x) => x.toLowerCase());
   const rank = (z) => { const i = order.indexOf(z.name.toLowerCase()); return i < 0 ? 999 : i; };
   return Object.keys(byZone).map((id) => ({ zone: S.zones[id], devs: byZone[id].sort((a, b) => a.name.localeCompare(b.name, 'sv')) }))
@@ -788,6 +855,7 @@ function devState0(d) {
   return '';
 }
 function renderControl() {
+  renderVacuum();
   const demo = !useHomey();
   // stämningar
   $('#moods').innerHTML = list(cfg.moods).slice(0, 4).map((n) => {
@@ -832,6 +900,7 @@ function renderControl() {
     <div class="phead">
       <button type="button" class="obtn" data-act="roomclose" aria-label="Tillbaka till alla rum">${ICON.back}</button>
       <div class="t">${esc(open.zone.name)}</div>
+      ${(() => { const vr = vacRoomFor(open.zone.name); return vr ? `<button type="button" class="tbtn" data-act="vacroom" data-id="${esc(vr.v.id)}" data-room="${esc(vr.id)}">Dammsug</button>` : ''; })()}
       ${open.devs.some(isLight) ? `<button type="button" class="tbtn" data-act="roomoff" data-zone="${esc(open.zone.id)}">Släck rummet</button>` : ''}
     </div>
     ${open.devs.map(devRow).join('')}
@@ -885,8 +954,12 @@ document.addEventListener('click', (ev) => {
       Object.values(S.devices).forEach((x) => { if (isLight(x) && isOn(x)) setCap(x.id, 'onoff', false); if (isSpeaker(x) && val(x, 'speaker_playing')) setCap(x.id, 'speaker_playing', false); });
       S.lastMood = null; S.moodNote = ''; toast('Allt släckt'); break;
     case 'settings': openSettings(); break;
-    case 'diagvac': runVacDiag(); break;
-    case 'copydiag': { const t = $('#diagtext'); if (t) { t.select(); try { navigator.clipboard.writeText(t.value).then(() => toast('Kopierat')); } catch (e) { document.execCommand('copy'); toast('Kopierat'); } } break; }
+    case 'vacfull': if (d) { setCap(d.id, 'clean_full', true); toast(d.name + ' börjar städa'); } break;
+    case 'vacpause': if (d) setCap(d.id, 'pause_clean', true); break;
+    case 'vacdock': if (d) { setCap(d.id, 'cancel_and_dock', true); toast(d.name + ' åker hem'); } break;
+    case 'vaclocate': if (d) { setCap(d.id, 'locate', true); toast(d.name + ' piper så du hittar den'); } break;
+    case 'vacrooms': if (d) { setCap(d.id, 'button.refresh_rooms', true); toast('Hämtar rum från roboten…'); setTimeout(loadHomey, 5000); } break;
+    case 'vacroom': if (d) { setCap(d.id, 'clean_room_pick', b.dataset.room); toast(d.name + ' dammsuger ' + (S.zones[S.room] || {}).name); } break;
     case 'energy': renderEnergy(); $('#energy').showModal(); break;
     case 'energyclose': $('#energy').close(); break;
     case 'closecfg': $('#settings').close(); break;
@@ -909,36 +982,6 @@ $('#sform').addEventListener('submit', () => {
   store.set('cfg', next);
   location.reload();
 });
-
-// ---------- tillfällig diagnostik: vad dammsugaren rapporterar ----------
-async function runVacDiag() {
-  const out = $('#diagout'); out.hidden = false;
-  if (!useHomey()) { out.innerHTML = '<p class="hint">Fyll i Homeys IP-adress och API-nyckel och spara först.</p>'; return; }
-  out.innerHTML = '<p class="hint">Hämtar från Homey…</p>';
-  const raw = async (path) => {
-    try {
-      const r = await fetch(homeyBase() + path, { headers: { Authorization: 'Bearer ' + cfg.homeyKey } });
-      const txt = await r.text(); let body; try { body = JSON.parse(txt); } catch (e) { body = txt.slice(0, 200); }
-      return r.ok ? body : { status: r.status, svar: body && body.error ? body.error : body };
-    } catch (e) { return { fel: e.message }; }
-  };
-  const res = {};
-  const devs = await raw('/api/manager/devices/device');
-  const isVac = (d) => d.class === 'vacuumcleaner' || /roborock/i.test(String(d.driverId || d.driverUri || '') + ' ' + String(d.ownerUri || ''));
-  res.dammsugare = devs && !devs.status ? Object.values(devs).filter(isVac).map((d) => ({
-    namn: d.name, class: d.class, virtualClass: d.virtualClass, rum: (S.zones[d.zone] || {}).name, driverId: d.driverId || d.driverUri, tillganglig: d.available,
-    funktioner: Object.fromEntries(Object.entries(d.capabilitiesObj || {}).map(([k, v]) => [k, { varde: v.value, titel: v.title, typ: v.type, styrbar: v.setable, val: Array.isArray(v.values) ? v.values.map((x) => x.id) : undefined }]))
-  })) : devs;
-  const cards = await raw('/api/manager/flow/flowcardaction');
-  const list = cards && !cards.status ? (Array.isArray(cards) ? cards : Object.values(cards)) : null;
-  res.flowkort = list ? list.filter((k) => /roborock/i.test(String(k.ownerUri || k.uri || '') + ' ' + String(k.id || ''))).map((k) => ({
-    id: k.id, uri: k.ownerUri || k.uri, titel: k.titleFormatted || k.title, argument: (k.args || []).map((a) => ({ namn: a.name, typ: a.type, val: Array.isArray(a.values) ? a.values.map((x) => x.id).slice(0, 20) : undefined }))
-  })).slice(0, 60) : cards;
-  let txt = JSON.stringify(res, null, 1);
-  if (txt.length > 20000) txt = txt.slice(0, 20000) + '\n… (avkortat)';
-  out.innerHTML = `<p class="hint">Kopiera texten och klistra in den i chatten. Den innehåller inga nycklar.</p><textarea id="diagtext" readonly rows="8" style="width:100%;font:12px ui-monospace,monospace"></textarea><div class="actions"><button type="button" class="tbtn" data-act="copydiag">Kopiera</button></div>`;
-  $('#diagtext').value = txt;
-}
 
 // ---------- start ----------
 function updateMode() {

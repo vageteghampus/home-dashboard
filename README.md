@@ -83,6 +83,12 @@ Knappar utan ett matchande Flow är gråa, och sidan talar om vilka som saknas. 
 - **Rumsrutorna** visar hur många watt rummet drar just nu.
 - Effekten per enhet och rum är antingen uppmätt (smarta uttag, termostater) eller Homeys egen uppskattning för lampor, samma siffror som i Energi-fliken i Homey-appen. Uppskattningen går att justera per enhet i Homey under enhetens energiinställningar.
 
+## Robotdammsugare
+
+Har du en robotdammsugare i Homey (t.ex. Roborock via appen **Roborock Cloud**) visas ett eget kort med status, batteri, senaste städningen och knapparna **Städa allt**, **Pausa**, **Åk hem** och **Hitta** (roboten piper). Har den fastnat eller fått problem syns det i rött.
+
+**Dammsug ett rum:** öppna ett rum på plattan och tryck **Dammsug**. Knappen visas när ett rum i robotens karta heter likadant som zonen i Homey, så döp rummen lika i Roborock-appen (t.ex. "Kök" på båda ställena). Står det "Hämta rum från roboten" på dammsugarkortet, tryck där först så att Homey läser in robotens rum.
+
 ## Felsökning
 
 **"Kunde inte nå Homey"**
