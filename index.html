@@ -108,6 +108,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .moods button{height:48px;border-radius:14px;border:1px solid var(--edge);background:var(--card);font-size:14px;font-weight:500;padding:0 6px}
 .moods button.active{background:var(--text);color:var(--bg);border-color:var(--text)}
 .note{font-size:13px;color:var(--muted);min-height:16px;margin-top:-8px}
+.note:empty{display:none}
 .favs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .fav{height:56px;border-radius:14px;background:var(--card);display:flex;align-items:center;gap:10px;padding:0 14px;text-align:left;min-width:0}
 .fav.on{background:var(--warm)}
@@ -118,8 +119,11 @@ main{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 .room{background:var(--card);border-radius:16px;display:flex;align-items:center;padding-right:8px;min-width:0}
 .room.on{background:var(--warm)}
 .room .open{flex:1;min-width:0;align-self:stretch;text-align:left;padding:10px 0 10px 14px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.room .rbtns{display:flex;gap:6px;flex:none}
 .room b{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.room small{font-size:12px;color:var(--muted)}
+.room small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room .rbtns .ibtn{width:42px;height:42px}
+@media (max-width:520px){.rooms{grid-template-columns:minmax(0,1fr)}}
 .ibtn{width:44px;height:44px;flex:none;border-radius:12px;background:var(--btn);display:flex;align-items:center;justify-content:center}
 .ibtn.lit{background:var(--amber)}
 .ibtn.lit svg{stroke:var(--bg)}
@@ -863,6 +867,8 @@ function renderControl() {
   renderVacuum();
   const demo = !useHomey();
   // stämningar
+  const moodNames = list(cfg.moods).slice(0, 4);
+  $('#moods').style.gridTemplateColumns = `repeat(${Math.max(1, moodNames.length)}, minmax(0, 1fr))`;
   $('#moods').innerHTML = list(cfg.moods).slice(0, 4).map((n) => {
     const f = findFlow(n);
     return `<button type="button" class="${S.lastMood === n ? 'active' : ''}" data-act="mood" data-name="${esc(n)}" ${f ? '' : 'disabled title="Inget Flow med det namnet"'}>${esc(n)}</button>`;
@@ -892,12 +898,12 @@ function renderControl() {
     el.innerHTML = `<div class="rooms grow">${rooms.map((r) => {
       const lights = r.devs.filter(isLight), n = lights.filter(isOn).length;
       const status = lights.length ? (n === 0 ? 'Släckt' : n === lights.length ? (lights.length === 1 ? 'Tänd' : 'Allt på') : n + ' av ' + lights.length + ' på') : r.devs.length ? r.devs.length + (r.devs.length === 1 ? ' enhet' : ' enheter') : 'Kan dammsugas';
-      const vr = lights.length ? null : vacRoomFor(r.zone.name);
+      const vr = vacRoomFor(r.zone.name);
       const w = r.devs.reduce((a, d) => a + (powerOf(d) || 0), 0);
       const st = status + (w >= 1 ? ' · ' + fmtW(w) : '');
       return `<div class="room ${n ? 'on' : ''}">
         <button type="button" class="open" data-act="room" data-zone="${esc(r.zone.id)}"><b>${esc(r.zone.name)}</b><small>${st}</small></button>
-        ${lights.length ? `<button type="button" class="ibtn ${n ? 'lit' : ''}" data-act="roomtoggle" data-zone="${esc(r.zone.id)}" aria-label="${n ? 'Släck' : 'Tänd'} ${esc(r.zone.name)}">${ICON.bulb('#9AA3AE')}</button>` : vr ? `<button type="button" class="ibtn" data-act="vacroom" data-id="${esc(vr.v.id)}" data-room="${esc(vr.id)}" data-zone="${esc(r.zone.id)}" aria-label="Dammsug ${esc(r.zone.name)}">${ICON.vac}</button>` : ''}
+        <div class="rbtns">${vr ? `<button type="button" class="ibtn" data-act="vacroom" data-id="${esc(vr.v.id)}" data-room="${esc(vr.id)}" data-zone="${esc(r.zone.id)}" aria-label="Dammsug ${esc(r.zone.name)}">${ICON.vac}</button>` : ''}${lights.length ? `<button type="button" class="ibtn ${n ? 'lit' : ''}" data-act="roomtoggle" data-zone="${esc(r.zone.id)}" aria-label="${n ? 'Släck' : 'Tänd'} ${esc(r.zone.name)}">${ICON.bulb('#9AA3AE')}</button>` : ''}</div>
       </div>`;
     }).join('')}</div>`;
     return;
