@@ -134,8 +134,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 dialog form{padding:22px;display:flex;flex-direction:column;gap:14px}
 dialog h3{margin:0;font-size:20px}
 label{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
-input{font:inherit;font-size:16px;color:var(--text);background:var(--inset);border:1px solid var(--edge);border-radius:10px;padding:11px 12px;width:100%}
-input:focus{outline:2px solid var(--amber);outline-offset:1px}
+input,textarea{font:inherit;font-size:16px;resize:vertical;color:var(--text);background:var(--inset);border:1px solid var(--edge);border-radius:10px;padding:11px 12px;width:100%}
+input:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:1px}
 .row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px}
 .primary{background:var(--amber);color:var(--bg);font-weight:600;border:0}
@@ -221,8 +221,9 @@ input:focus{outline:2px solid var(--amber);outline-offset:1px}
     <label>Rumsordning (valfritt, kommaseparerade)
       <input name="roomOrder" placeholder="Hall, Kök, Vardagsrum, …">
     </label>
-    <label>Apparater för "Bästa tid att köra" (namn:timmar, kommaseparerade)
-      <input name="appliances" placeholder="Tvättmaskin:2, Diskmaskin:2">
+    <label>Apparater för "Bästa tid att köra" (en per rad)
+      <textarea name="appliances" rows="4" placeholder="Diskmaskin: 2 h, 1 kWh, klar 07:00&#10;Tvättmaskin: 2 h, 1 kWh, 07–22&#10;Elbil: 4 h, 25 kWh, klar 06:30"></textarea>
+      <span class="hint">Tid i timmar, förbrukning per körning, och antingen "klar HH:MM" (ska vara färdig senast) eller "HH–HH" (får bara gå mellan de tiderna).</span>
     </label>
     <div class="actions">
       <button type="button" class="tbtn" data-act="clearcfg">Rensa allt</button>
@@ -253,7 +254,7 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-const DEFAULTS = { homey: '', homeyKey: '', tibber: '', lat: '62.3908', lon: '17.3069', place: 'Sundsvall', moods: 'Morgon, Kväll, Hemma, Borta', favorites: '', roomOrder: '', appliances: 'Tvättmaskin:2, Diskmaskin:2' };
+const DEFAULTS = { homey: '', homeyKey: '', tibber: '', lat: '62.3908', lon: '17.3069', place: 'Sundsvall', moods: 'Morgon, Kväll, Hemma, Borta', favorites: '', roomOrder: '', appliances: 'Diskmaskin: 2 h, 1 kWh, klar 07:00\nTvättmaskin: 2 h, 1 kWh, 07–22' };
 // Tomma fält i inställningarna betyder "använd standardvärdet"
 let cfg = Object.assign({}, DEFAULTS);
 Object.entries(store.get('cfg', {})).forEach(([k, v]) => { if (v !== '' && v != null) cfg[k] = v; });
@@ -558,34 +559,53 @@ function renderWeather() {
 // ---------- rendering: el ----------
 // ---------- bästa tid att köra ----------
 function applianceList() {
-  return list(cfg.appliances).map((s) => {
-    const m = s.match(/^(.+?)\s*[:=]\s*([\d.,]+)\s*h?$/i);
-    if (!m) return null;
-    const h = Number(m[2].replace(',', '.'));
-    return h > 0 && h <= 24 ? { name: m[1].trim(), h } : null;
+  const hm = (h, m) => Number(h) * 60 + Number(m || 0);
+  return String(cfg.appliances || '').split(/\n|;/).map((line) => {
+    const m = line.match(/^\s*(.+?)\s*[:=]\s*(.+)$/); if (!m) return null;
+    const a = { name: m[1].trim() }, rest = m[2];
+    let x;
+    if ((x = rest.match(/klar(?:\s+senast)?\s*(?:kl\.?\s*)?(\d{1,2})(?:[:.](\d{2}))?/i))) a.deadline = hm(x[1], x[2]);
+    if ((x = rest.match(/(?:^|[\s,])(\d{1,2})(?:[:.](\d{2}))?\s*[–—-]\s*(\d{1,2})(?:[:.](\d{2}))?(?![\d.,]*\s*(?:h|kwh))/i))) { a.from = hm(x[1], x[2]); a.to = hm(x[3], x[4]); }
+    if ((x = rest.match(/([\d]+(?:[.,]\d+)?)\s*kwh/i))) a.kwh = Number(x[1].replace(',', '.'));
+    if ((x = rest.match(/([\d]+(?:[.,]\d+)?)\s*h(?!\w)/i)) || (x = rest.match(/^\s*([\d]+(?:[.,]\d+)?)\s*$/))) a.h = Number(x[1].replace(',', '.'));
+    return a.h > 0 && a.h <= 24 ? a : null;
   }).filter(Boolean);
 }
+const minOfDay = (t) => { const d = new Date(t); return d.getHours() * 60 + d.getMinutes(); };
+const inWindow = (t, from, to) => { const m = minOfDay(t); return from <= to ? m >= from && m < to : m >= from || m < to; };
 function bestWindows() {
   const p = S.prices; if (!p) return null;
   const slots = [...(p.today || []), ...(p.tomorrow || [])].map((x) => ({ t: new Date(x.startsAt).getTime(), v: x.total * 100 })).sort((a, b) => a.t - b.t);
   if (slots.length < 2) return null;
   const slotMs = slots[1].t - slots[0].t, now = Date.now();
+  const hasTomorrow = !!(p.tomorrow && p.tomorrow.length);
   const first = slots.findIndex((x) => x.t + slotMs > now); // pågående timme räknas som "nu"
-  if (first < 0) return { items: [], hasTomorrow: !!(p.tomorrow && p.tomorrow.length) };
+  if (first < 0) return { items: [], hasTomorrow };
+  const lastEnd = slots[slots.length - 1].t + slotMs;
   const avgFrom = (i, n) => { let s = 0; for (let k = i; k < i + n; k++) s += slots[k].v; return s / n; };
   const items = applianceList().map((a) => {
     const n = Math.max(1, Math.round(a.h * 3600000 / slotMs));
-    let best = null;
-    for (let i = first; i + n <= slots.length; i++) {
-      if (slots[i + n - 1].t - slots[i].t !== (n - 1) * slotMs) continue; // hoppa över glapp
-      const avg = avgFrom(i, n);
-      if (!best || avg < best.avg - 1e-9) best = { i, avg };
+    // senaste sluttid: nästa gång klockan är "klar"-tiden
+    let deadline = Infinity, deadlineBeyond = false;
+    if (a.deadline != null) {
+      const d = new Date(); d.setHours(0, a.deadline, 0, 0);
+      if (d.getTime() < now + n * slotMs) d.setDate(d.getDate() + 1);
+      deadline = d.getTime(); deadlineBeyond = deadline > lastEnd;
     }
+    const ok = (i) => {
+      if (i + n > slots.length) return false;
+      if (slots[i + n - 1].t - slots[i].t !== (n - 1) * slotMs) return false;
+      if (slots[i].t + n * slotMs > deadline) return false;
+      if (a.from != null) for (let k = i; k < i + n; k++) if (!inWindow(slots[k].t, a.from, a.to)) return false;
+      return true;
+    };
+    let best = null;
+    for (let i = first; i < slots.length; i++) if (ok(i)) { const avg = avgFrom(i, n); if (!best || avg < best.avg - 1e-9) best = { i, avg }; }
     if (!best) return Object.assign({}, a, { none: true });
-    const nowAvg = first + n <= slots.length ? avgFrom(first, n) : null;
-    return Object.assign({}, a, { start: new Date(slots[best.i].t), end: new Date(slots[best.i].t + n * slotMs), avg: best.avg, isNow: best.i === first, save: nowAvg != null ? nowAvg - best.avg : 0 });
+    const nowAvg = ok(first) && best.i !== first ? avgFrom(first, n) : null;
+    return Object.assign({}, a, { start: new Date(slots[best.i].t), end: new Date(slots[best.i].t + n * slotMs), avg: best.avg, nowAvg, isNow: best.i === first, partial: deadlineBeyond || (!hasTomorrow && a.deadline == null) });
   });
-  return { items, hasTomorrow: !!(p.tomorrow && p.tomorrow.length) };
+  return { items, hasTomorrow };
 }
 function applianceIcon(name) {
   const s = 'width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA3AE" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
@@ -599,16 +619,23 @@ function renderBest() {
   const r = bestWindows();
   const head = `<div class="card-head"><h2>Bästa tid att köra</h2></div>`;
   if (!r) { el.innerHTML = head + '<p class="empty">Väntar på elpriser…</p>'; return; }
-  if (!r.items.length) { el.innerHTML = head + '<p class="empty">Lägg till apparater under kugghjulet, t.ex. "Tvättmaskin:2".</p>'; return; }
+  if (!r.items.length) { el.innerHTML = head + '<p class="empty">Lägg till apparater under kugghjulet, t.ex. "Diskmaskin: 2 h, 1 kWh, klar 07:00".</p>'; return; }
   const today = new Date().toDateString();
+  const pad = (m) => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  const kr = (x, avg) => { const v = x.kwh * avg / 100; return v.toLocaleString('sv-SE', { minimumFractionDigits: v < 10 ? 2 : 0, maximumFractionDigits: v < 10 ? 2 : 0 }) + ' kr'; };
+  const hShort = (m) => m % 60 ? pad(m) : String(Math.floor(m / 60) % 24).padStart(2, '0');
+  const rule = (x) => x.deadline != null ? 'klar senast ' + pad(x.deadline) : x.from != null ? 'mellan ' + hShort(x.from) + '–' + hShort(x.to) : '';
+  const day = (x) => x.isNow ? 'starta nu' : x.start.toDateString() !== today ? 'imorgon' : 'idag';
   const when = (x) => (x.isNow ? 'Nu' : hhmm(x.start)) + '–' + hhmm(x.end);
-  const day = (x) => x.isNow ? 'starta' : x.start.toDateString() !== today ? 'imorgon' : 'idag';
+  const price = (x) => x.kwh ? `${kr(x, x.avg)}${x.nowAvg != null ? ` <span style="opacity:.8">(${kr(x, x.nowAvg)} nu)</span>` : ''}` : `snitt ${num(Math.round(x.avg), 0)} öre/kWh`;
+  const meta = (x) => [num(x.h) + ' h', x.kwh ? num(x.kwh) + ' kWh' : '', rule(x)].filter(Boolean).join(' · ');
+  const anyPartial = r.items.some((x) => !x.none && x.partial);
   el.innerHTML = head + `<div>${r.items.map((x) => `<div class="brow">
       <div class="bico">${applianceIcon(x.name)}</div>
-      <div class="bname"><b>${esc(x.name)}</b><span>${num(x.h)} h</span>${!x.none && x.save >= 2 ? `<small>${num(Math.round(x.save), 0)} öre/kWh billigare än nu</small>` : ''}</div>
-      <div class="bwhen">${x.none ? '<small>Inte nog med timmar kvar</small>' : `<small>${day(x)}</small><b>${when(x)}</b><small>snitt ${num(Math.round(x.avg), 0)} öre/kWh</small>`}</div>
+      <div class="bname"><b>${esc(x.name)}</b><small>${esc(meta(x))}</small></div>
+      <div class="bwhen">${x.none ? `<small>${r.hasTomorrow ? 'Ingen tid passar' : 'Väntar på morgondagens priser'}</small>` : `<small>${day(x)}</small><b>${when(x)}</b><small>${price(x)}</small>`}</div>
     </div>`).join('')}</div>
-    ${r.hasTomorrow ? '' : '<p class="hint">Räknat på resten av dagen. Morgondagens priser brukar komma runt kl 13.</p>'}`;
+    ${!r.hasTomorrow && anyPartial ? '<p class="hint">Morgondagens priser kommer runt kl 13, då kan förslagen ändras.</p>' : ''}`;
 }
 
 function renderPower() {
@@ -868,6 +895,7 @@ document.addEventListener('click', (ev) => {
 function openSettings() {
   const f = $('#sform');
   Object.keys(DEFAULTS).forEach((k) => { if (f.elements[k]) f.elements[k].value = store.get('cfg', {})[k] || ''; });
+  f.elements.appliances.value = cfg.appliances; // visa det som faktiskt används, så det går att redigera direkt
   $('#settings').showModal();
 }
 $('#sform').addEventListener('submit', () => {
