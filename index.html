@@ -225,7 +225,9 @@ input:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:1px}
       <textarea name="appliances" rows="4" placeholder="Diskmaskin: 2 h, 1 kWh, klar 07:00&#10;Tvättmaskin: 2 h, 1 kWh, 07–22&#10;Elbil: 4 h, 25 kWh, klar 06:30"></textarea>
       <span class="hint">Tid i timmar, förbrukning per körning, och antingen "klar HH:MM" (ska vara färdig senast) eller "HH–HH" (får bara gå mellan de tiderna).</span>
     </label>
+    <div id="diagout" hidden></div>
     <div class="actions">
+      <button type="button" class="tbtn" data-act="diagvac">Diagnostik: dammsugare</button>
       <button type="button" class="tbtn" data-act="clearcfg">Rensa allt</button>
       <button type="button" class="tbtn" data-act="closecfg">Avbryt</button>
       <button type="submit" class="tbtn primary">Spara</button>
@@ -883,6 +885,8 @@ document.addEventListener('click', (ev) => {
       Object.values(S.devices).forEach((x) => { if (isLight(x) && isOn(x)) setCap(x.id, 'onoff', false); if (isSpeaker(x) && val(x, 'speaker_playing')) setCap(x.id, 'speaker_playing', false); });
       S.lastMood = null; S.moodNote = ''; toast('Allt släckt'); break;
     case 'settings': openSettings(); break;
+    case 'diagvac': runVacDiag(); break;
+    case 'copydiag': { const t = $('#diagtext'); if (t) { t.select(); try { navigator.clipboard.writeText(t.value).then(() => toast('Kopierat')); } catch (e) { document.execCommand('copy'); toast('Kopierat'); } } break; }
     case 'energy': renderEnergy(); $('#energy').showModal(); break;
     case 'energyclose': $('#energy').close(); break;
     case 'closecfg': $('#settings').close(); break;
@@ -905,6 +909,36 @@ $('#sform').addEventListener('submit', () => {
   store.set('cfg', next);
   location.reload();
 });
+
+// ---------- tillfällig diagnostik: vad dammsugaren rapporterar ----------
+async function runVacDiag() {
+  const out = $('#diagout'); out.hidden = false;
+  if (!useHomey()) { out.innerHTML = '<p class="hint">Fyll i Homeys IP-adress och API-nyckel och spara först.</p>'; return; }
+  out.innerHTML = '<p class="hint">Hämtar från Homey…</p>';
+  const raw = async (path) => {
+    try {
+      const r = await fetch(homeyBase() + path, { headers: { Authorization: 'Bearer ' + cfg.homeyKey } });
+      const txt = await r.text(); let body; try { body = JSON.parse(txt); } catch (e) { body = txt.slice(0, 200); }
+      return r.ok ? body : { status: r.status, svar: body && body.error ? body.error : body };
+    } catch (e) { return { fel: e.message }; }
+  };
+  const res = {};
+  const devs = await raw('/api/manager/devices/device');
+  const isVac = (d) => d.class === 'vacuumcleaner' || /roborock/i.test(String(d.driverId || d.driverUri || '') + ' ' + String(d.ownerUri || ''));
+  res.dammsugare = devs && !devs.status ? Object.values(devs).filter(isVac).map((d) => ({
+    namn: d.name, class: d.class, virtualClass: d.virtualClass, rum: (S.zones[d.zone] || {}).name, driverId: d.driverId || d.driverUri, tillganglig: d.available,
+    funktioner: Object.fromEntries(Object.entries(d.capabilitiesObj || {}).map(([k, v]) => [k, { varde: v.value, titel: v.title, typ: v.type, styrbar: v.setable, val: Array.isArray(v.values) ? v.values.map((x) => x.id) : undefined }]))
+  })) : devs;
+  const cards = await raw('/api/manager/flow/flowcardaction');
+  const list = cards && !cards.status ? (Array.isArray(cards) ? cards : Object.values(cards)) : null;
+  res.flowkort = list ? list.filter((k) => /roborock/i.test(String(k.ownerUri || k.uri || '') + ' ' + String(k.id || ''))).map((k) => ({
+    id: k.id, uri: k.ownerUri || k.uri, titel: k.titleFormatted || k.title, argument: (k.args || []).map((a) => ({ namn: a.name, typ: a.type, val: Array.isArray(a.values) ? a.values.map((x) => x.id).slice(0, 20) : undefined }))
+  })).slice(0, 60) : cards;
+  let txt = JSON.stringify(res, null, 1);
+  if (txt.length > 20000) txt = txt.slice(0, 20000) + '\n… (avkortat)';
+  out.innerHTML = `<p class="hint">Kopiera texten och klistra in den i chatten. Den innehåller inga nycklar.</p><textarea id="diagtext" readonly rows="8" style="width:100%;font:12px ui-monospace,monospace"></textarea><div class="actions"><button type="button" class="tbtn" data-act="copydiag">Kopiera</button></div>`;
+  $('#diagtext').value = txt;
+}
 
 // ---------- start ----------
 function updateMode() {
